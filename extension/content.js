@@ -129,15 +129,8 @@
         reply({ ok: false, error: String(err) });
       }
     } else if (e.data.type === "orcstrator:notify") {
-      // Ask the background to show a system notification (panel may be hidden).
-      try {
-        const p = ext.runtime.sendMessage({
-          type: "orcstrator:notify",
-          title: e.data.title,
-          text: e.data.text,
-        });
-        if (p && typeof p.catch === "function") p.catch(() => {});
-      } catch {}
+      // Desktop notifications (usage limits, stalls) — page → background.
+      relayToBackground({ type: "orcs:notify", title: e.data.title, body: e.data.body });
     } else if (e.data.type === "orcstrator:config-write") {
       // Merge a config patch from the page (panel dropdowns) into storage.
       (async () => {

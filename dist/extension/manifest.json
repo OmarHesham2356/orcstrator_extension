@@ -5,9 +5,9 @@
   "description": "Make ChatGPT act as the frontend while OpenCode runs the work via a local bridge.",
   "permissions": [
     "activeTab",
+    "notifications",
     "scripting",
-    "storage",
-    "notifications"
+    "storage"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

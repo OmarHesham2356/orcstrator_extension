@@ -11,9 +11,9 @@
   },
   "permissions": [
     "activeTab",
+    "notifications",
     "scripting",
-    "storage",
-    "notifications"
+    "storage"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

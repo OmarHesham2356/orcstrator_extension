@@ -448,108 +448,6 @@
       appendError("TUI open failed — bridge unreachable: " + String((e && e.message) || e));
     }
   }
-
-  // ---------- ChatGPT usage-limit handling (v0.7.0) ----------
-  // Edge case: ChatGPT account caps the loop dead — "Chat paused until usage
-  // resets tomorrow at 12:07 AM", "You've reached the limit for chats that
-  // include files or images", and friends. While a limit notice is visible:
-  //   1. OpenCode still gets the prompt and produces its reply,
-  //   2. but NOTHING is auto-sent into ChatGPT (the reply stays in the panel),
-  //   3. a system notification + prominent panel note tell the user why,
-  //   4. auto-send re-enables:
-  //        - at the parsed reset time ("tomorrow at 12:07 AM" style), or
-  //        - when the notice has been gone for 3 scans and no reset time
-  //          could be parsed (false alarm / transient toast).
-  const LIMIT_RE =
-    /chat paused until[\s\S]{0,120}?usage resets?|you(?:'ve| have)? (?:reached|hit)[^\n]{0,60}limit for (?:chats|files|images|messages)|reached your [^\n]{0,30}(?:usage|quota|cap|daily|file|image) limit|usage limit was reached|(?:your|the)[^\n]{0,40}limit (?:will )?resets?/i;
-  const limitState = { active: false, detail: "", untilTs: 0, missStreak: 0 };
-  let limitTimer = null;
-  function notifyOrc(title, text) {
-    window.postMessage({ type: "orcstrator:notify", title, text }, "*");
-  }
-  function parseResetTime(text) {
-    // "usage resets tomorrow at 12:07 AM" — take the next occurrence of the
-    // clock time (ChatGPT's resets are almost always tomorrow/morning).
-    const m = String(text).match(/(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
-    if (!m) return 0;
-    let h = parseInt(m[1], 10) % 12;
-    const n = 60 * 1000;
-    const min = parseInt(m[2], 10);
-    if (/p/i.test(m[3])) h += 12;
-    const now = new Date();
-    const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, 0);
-    if (cand.getTime() <= Date.now() + 60 * 1000) cand.setDate(cand.getDate() + 1);
-    return cand.getTime();
-  }
-  function scanLimitBanner() {
-    let found = null;
-    const nodes = document.querySelectorAll("div,span,p,h1,h2,h3,h4,h5,li,td");
-    for (const el of nodes) {
-      if (el.closest && el.closest('form,[id^="prompt-textarea"],[contenteditable="true"]')) continue;
-      const t = (el.textContent || "").trim();
-      if (!t || t.length > 420) continue;
-      if (!LIMIT_RE.test(t)) continue;
-      found = t;
-      break;
-    }
-    return found;
-  }
-  function resetTimeLabel() {
-    return limitState.untilTs
-      ? new Date(limitState.untilTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      : "";
-  }
-  function syncLimitNote() {
-    if (!limitState.active) return;
-    const label = resetTimeLabel();
-    setStatus("busy", "ChatGPT limited" + (label ? " (resets " + label + ")" : ""));
-  }
-  function limitClear(reason) {
-    limitState.active = false;
-    limitState.untilTs = 0;
-    limitState.detail = "";
-    appendNote("usage-limit pause lifted — " + reason);
-    notifyOrc("Orcstrator — relay re-enabled", "ChatGPT limit " + reason);
-  }
-  function limitTick() {
-    if (!limitState.active) {
-      const found = scanLimitBanner();
-      if (!found) return;
-      limitState.active = true;
-      limitState.detail = found.slice(0, 220);
-      limitState.untilTs = parseResetTime(found);
-      limitState.missStreak = 0;
-      console.warn("[orcstrator] ChatGPT usage limit detected:", limitState.detail);
-      appendError(
-        "ChatGPT usage limit detected — auto-send PAUSED; OpenCode replies stay in this panel" +
-          (limitState.untilTs ? " until ~" + resetTimeLabel() : "") +
-          ' Banner: "' + limitState.detail + '"'
-      );
-      notifyOrc(
-        "Orcstrator — auto-send paused",
-        "ChatGPT hit a usage limit" +
-          (limitState.untilTs ? " (resets " + resetTimeLabel() + ")" : "") +
-          ". OpenCode replies stay in the panel until it lifts."
-      );
-      syncLimitNote();
-      return;
-    }
-    if (limitState.untilTs) {
-      if (Date.now() >= limitState.untilTs) limitClear("reset time reached");
-      return;
-    }
-    // No reset time parsed: end the pause once the notice is gone for sure.
-    if (scanLimitBanner()) {
-      limitState.missStreak = 0;
-      syncLimitNote();
-    } else if (++limitState.missStreak >= 3) {
-      limitClear("no limit notice visible anymore");
-    }
-  }
-  function armLimitWatch() {
-    if (limitTimer) return;
-    limitTimer = setInterval(limitTick, 6000);
-  }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
     relayBadgeEl.textContent = state.relayMode === "relay" ? "⟳" : "◇";
@@ -1302,15 +1200,15 @@
     const answer = currentAnswer && currentAnswer.text ? currentAnswer.text : "";
     if (state.relayMode !== "relay") return;
     console.log("[orcstrator] OpenCode finished, answer " + answer.length + " chars, turns left " + state.turnBudget);
-    // Usage-limit gate: ChatGPT refuses submits while capped, so park the
-    // answer in the panel instead of attempting an auto-send.
-    if (limitState.active) {
+    // Edge case: ChatGPT usage limit ("Chat paused until usage resets…").
+    // OpenCode's work still streams here, but sending back would just fail.
+    if (checkChatgptLimit()) {
       appendNote(
-        "ChatGPT usage limit active — OpenCode's reply stays in this panel (auto-send paused" +
-          (limitState.untilTs ? " until ~" + resetTimeLabel() : "") + ")"
+        "OpenCode finished, but ChatGPT is usage-limited (" +
+          detectChatgptLimit() +
+          ") — output shown here only. It will be sent on your next prompt after the limit resets."
       );
-      syncLimitNote();
-      return finishRelay("ChatGPT limited — reply kept in panel");
+      return finishRelay("chatgpt limit — output kept in panel");
     }
     if (!answer.trim()) {
       appendNote("relay: OpenCode produced no text to send back");
@@ -1423,30 +1321,109 @@
   // OpenCode runs can legitimately take many minutes, but if NO events at all
   // arrive for 15 minutes (silent stall / dead provider / SSE hiccup) tell the
   // user instead of silently waiting forever. Non-destructive: if events
-  // resume, the relay continues normally.
+  // resume, the relay continues normally. The stall report also checks for
+  // ChatGPT usage-limit banners (a common true cause) and queries the bridge
+  // for OpenCode's actual last-activity time to distinguish "hung" from
+  // "working but SSE died".
   let watchdogTimer = null;
   function armStallWatch() {
     clearStallWatch();
     state.lastEventTs = Date.now();
-    watchdogTimer = setInterval(() => {
-      if (!state.relayActive) return clearStallWatch();
-      const since = Date.now() - (state.lastEventTs || 0);
-      if (since >= 15 * 60 * 1000) {
-        console.warn("[orcstrator] opencode silent for 15+ min — no events; run may be stalled");
-        setStatus("error", "no OpenCode activity for 15 min");
-        appendError(
-          "OpenCode has emitted no events for over 15 minutes — the run may be stalled " +
-            "(model/provider hang or a dead SSE pipe). Press ⏹ stop to end the chain, or keep waiting."
-        );
-        state.lastEventTs = Date.now(); // report once per silent window
-      }
-    }, 60 * 1000);
+    watchdogTimer = setInterval(tickWatchdog, 60 * 1000);
   }
   function clearStallWatch() {
     if (watchdogTimer) {
       clearInterval(watchdogTimer);
       watchdogTimer = null;
     }
+  }
+  async function tickWatchdog() {
+    if (!state.relayActive) return clearStallWatch();
+    checkChatgptLimit(); // usage-limit banners stall the loop too
+    const since = Date.now() - (state.lastEventTs || 0);
+    if (since < 15 * 60 * 1000) return;
+    state.lastEventTs = Date.now(); // report once per silent window
+    // Look at OpenCode's actual last activity through the bridge.
+    let detail = "";
+    try {
+      const r = await bridgeGet(state.bridgeUrl, "/chatgpt/messages?chatId=" + encodeURIComponent(state.chatId));
+      const msgs = (r && r.ok && r.json && r.json.data) || [];
+      let last = 0;
+      for (const m of msgs) {
+        const t = m && m.time && (m.time.completed || m.time.streamed || m.time.created);
+        if (t && t > last) last = t;
+      }
+      if (last) {
+        const mins = Math.round((Date.now() - last) / 60000);
+        detail =
+          " Last OpenCode message: " +
+          mins +
+          " min ago" +
+          (mins <= 2
+            ? " — OpenCode IS progressing; the SSE pipe likely died. The run still finishes at the TUI/bridge; reload then send again to re-arm the loop."
+            : " — OpenCode itself looks stalled. Press ⏹ stop to end the chain, or keep waiting.");
+      }
+    } catch {}
+    console.warn("[orcstrator] opencode silent for 15+ min — no events" + detail);
+    setStatus("error", "no OpenCode activity for 15 min");
+    appendError("OpenCode has emitted no events for over 15 minutes." + detail);
+    notifyUser(
+      "Orcstrator — OpenCode quiet for 15+ min",
+      ("No OpenCode events for over 15 minutes." + (detail || " Press ⏹ stop to end the chain, or keep waiting.")).trim()
+    );
+  }
+
+  // ---------- ChatGPT usage-limit edge case ----------
+  // ChatGPT free/soft limits ("Chat paused until usage resets tomorrow at
+  // 12:07 AM", "reached the limit for chats that include files or images",
+  // conversation-length limits) make the relay's auto-send dead. Detect the
+  // banner, raise ONE desktop notification, and while the limit stands:
+  // OpenCode still runs and streams into the panel, but the reply is NOT
+  // injected back into ChatGPT.
+  function notifyUser(title, body) {
+    window.postMessage({ type: "orcstrator:notify", title: String(title || ""), body: String(body || "") }, "*");
+  }
+  const LIMIT_PATTERNS = [
+    /Chat paused until usage resets[^.\n]*/i,
+    /[^.\n]*reached[^.\n]{0,60}\blimit\b[^.\n]{0,120}/i,
+    /limit for chats that include files or images[^.\n]{0,120}/i,
+    /[^.\n]*maximum[^.\n]{0,40}(?:messages|length)[^.\n]{0,120}/i,
+  ];
+  let lastLimitNotice = "";
+  function detectChatgptLimit() {
+    if (!document.body) return null;
+    const txt = document.body.innerText || "";
+    if (!txt) return null;
+    for (let i = 0; i < LIMIT_PATTERNS.length; i++) {
+      const m = txt.match(LIMIT_PATTERNS[i]);
+      if (m) return String(m[0]).replace(/\s+/g, " ").trim().slice(0, 180);
+    }
+    return null;
+  }
+  function checkChatgptLimit() {
+    const hit = detectChatgptLimit();
+    if (hit) {
+      state.chatgptLimited = true;
+      if (hit !== lastLimitNotice) {
+        lastLimitNotice = hit;
+        appendError("ChatGPT usage limit detected: " + hit);
+        notifyUser(
+          "Orcstrator — ChatGPT paused (usage limit)",
+          hit + " — OpenCode keeps running, its output will show in the panel only until the limit resets."
+        );
+      }
+      return true;
+    }
+    if (state.chatgptLimited) {
+      // Banner gone — re-enable sending quietly.
+      state.chatgptLimited = false;
+      lastLimitNotice = "";
+      appendNote("ChatGPT usage limit no longer detected — injecting OpenCode replies again");
+    }
+    return false;
+  }
+  function chatgptLimited() {
+    return !!state.chatgptLimited || !!detectChatgptLimit();
   }
 
   // The model/agent the bridge should use for relays (captured once at boot).
@@ -1642,7 +1619,6 @@
     renderRelayBadge();
     state.chatId = getCurrentChatId();
     ensurePanel();
-    armLimitWatch(); // toggles the usage-limit pause whenever ChatGPT shows/retracts a cap notice
     // Re-resolve chat id on SPA navigation.
     let lastHref = location.href;
     setInterval(() => {
@@ -1678,6 +1654,9 @@
       state.relayActive = true;
       state.turnBudget = state.maxTurns;
       refreshStopBtn();
+      // Edge case: user just sent while ChatGPT is usage-limited — notify
+      // right away; the loop still runs, output lands panel-only.
+      checkChatgptLimit();
       if (capturedText) appendUser("you (→ ChatGPT, it plans)", String(capturedText).slice(0, 3000));
       startReplyWatch("planning reply");
     };

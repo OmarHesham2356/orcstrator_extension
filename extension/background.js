@@ -6,7 +6,7 @@
 // http://127.0.0.1:* from chatgpt.com only works from the background.
 const ext = (typeof globalThis.browser !== "undefined" ? globalThis.browser : globalThis.chrome);
 
-console.log("[orcstrator] background v0.7.0 live");
+console.log("[orcstrator] background v0.4.9 live");
 
 // ---------- one-shot relay (prompts, health, browse, models, ...) ----------
 // Message-response contract differs per engine:
@@ -35,6 +35,27 @@ ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return hasSendResponse ? false : undefined;
   }
 
+  if (msg.type === "orcs:notify") {
+    // Fire-and-forget desktop notification (usage limits, stalls).
+    try {
+      const n = {
+        type: "basic",
+        title: String(msg.title || "Orcstrator").slice(0, 60),
+        message: String(msg.body || "").slice(0, 300) || "Orcstrator update",
+      };
+      if (ext.notifications) {
+        if (IS_FIREFOX) {
+          // browser.* returns a promise here; the response channel needn't stay open.
+          const p = ext.notifications.create(n);
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        } else {
+          ext.notifications.create(n, () => void ext.runtime.lastError);
+        }
+      }
+    } catch {}
+    return hasSendResponse ? false : undefined;
+  }
+
   if (msg.type === "to-bridge") {
     const p = toBridge(msg).catch((e) => ({ ok: false, error: String(e) }));
     if (IS_FIREFOX) {
@@ -54,22 +75,6 @@ ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (IS_FIREFOX) return p;
     p.then(sendResponse, (e) => sendResponse({ ok: false, error: String(e) }));
     return true;
-  }
-
-  if (msg.type === "orcstrator:notify") {
-    // System notification for things the user must see even with the panel
-    // hidden (ChatGPT usage limits, relay dead-ends). Fire and forget.
-    try {
-      ext.notifications &&
-        ext.notifications.create("orcstrator-" + Date.now(), {
-          type: "basic",
-          title: String(msg.title || "Orcstrator").slice(0, 60),
-          message: String(msg.text || "").slice(0, 300) || "\u2014",
-        });
-    } catch (e2) {
-      /* notifications unsupported — panel/chip still signal it */
-    }
-    return hasSendResponse ? false : undefined;
   }
 
   return hasSendResponse ? false : undefined;

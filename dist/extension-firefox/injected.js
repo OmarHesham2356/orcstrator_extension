@@ -313,86 +313,6 @@
       appendError("TUI open failed \u2014 bridge unreachable: " + String(e && e.message || e));
     }
   }
-  const LIMIT_RE = /chat paused until[\s\S]{0,120}?usage resets?|you(?:'ve| have)? (?:reached|hit)[^\n]{0,60}limit for (?:chats|files|images|messages)|reached your [^\n]{0,30}(?:usage|quota|cap|daily|file|image) limit|usage limit was reached|(?:your|the)[^\n]{0,40}limit (?:will )?resets?/i;
-  const limitState = { active: false, detail: "", untilTs: 0, missStreak: 0 };
-  let limitTimer = null;
-  function notifyOrc(title, text) {
-    window.postMessage({ type: "orcstrator:notify", title, text }, "*");
-  }
-  function parseResetTime(text) {
-    const m = String(text).match(/(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
-    if (!m) return 0;
-    let h = parseInt(m[1], 10) % 12;
-    const n = 60 * 1e3;
-    const min = parseInt(m[2], 10);
-    if (/p/i.test(m[3])) h += 12;
-    const now = /* @__PURE__ */ new Date();
-    const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, 0);
-    if (cand.getTime() <= Date.now() + 60 * 1e3) cand.setDate(cand.getDate() + 1);
-    return cand.getTime();
-  }
-  function scanLimitBanner() {
-    let found = null;
-    const nodes = document.querySelectorAll("div,span,p,h1,h2,h3,h4,h5,li,td");
-    for (const el of nodes) {
-      if (el.closest && el.closest('form,[id^="prompt-textarea"],[contenteditable="true"]')) continue;
-      const t = (el.textContent || "").trim();
-      if (!t || t.length > 420) continue;
-      if (!LIMIT_RE.test(t)) continue;
-      found = t;
-      break;
-    }
-    return found;
-  }
-  function resetTimeLabel() {
-    return limitState.untilTs ? new Date(limitState.untilTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-  }
-  function syncLimitNote() {
-    if (!limitState.active) return;
-    const label = resetTimeLabel();
-    setStatus("busy", "ChatGPT limited" + (label ? " (resets " + label + ")" : ""));
-  }
-  function limitClear(reason) {
-    limitState.active = false;
-    limitState.untilTs = 0;
-    limitState.detail = "";
-    appendNote("usage-limit pause lifted \u2014 " + reason);
-    notifyOrc("Orcstrator \u2014 relay re-enabled", "ChatGPT limit " + reason);
-  }
-  function limitTick() {
-    if (!limitState.active) {
-      const found = scanLimitBanner();
-      if (!found) return;
-      limitState.active = true;
-      limitState.detail = found.slice(0, 220);
-      limitState.untilTs = parseResetTime(found);
-      limitState.missStreak = 0;
-      console.warn("[orcstrator] ChatGPT usage limit detected:", limitState.detail);
-      appendError(
-        "ChatGPT usage limit detected \u2014 auto-send PAUSED; OpenCode replies stay in this panel" + (limitState.untilTs ? " until ~" + resetTimeLabel() : "") + ' Banner: "' + limitState.detail + '"'
-      );
-      notifyOrc(
-        "Orcstrator \u2014 auto-send paused",
-        "ChatGPT hit a usage limit" + (limitState.untilTs ? " (resets " + resetTimeLabel() + ")" : "") + ". OpenCode replies stay in the panel until it lifts."
-      );
-      syncLimitNote();
-      return;
-    }
-    if (limitState.untilTs) {
-      if (Date.now() >= limitState.untilTs) limitClear("reset time reached");
-      return;
-    }
-    if (scanLimitBanner()) {
-      limitState.missStreak = 0;
-      syncLimitNote();
-    } else if (++limitState.missStreak >= 3) {
-      limitClear("no limit notice visible anymore");
-    }
-  }
-  function armLimitWatch() {
-    if (limitTimer) return;
-    limitTimer = setInterval(limitTick, 6e3);
-  }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
     relayBadgeEl.textContent = state.relayMode === "relay" ? "\u27F3" : "\u25C7";
@@ -1067,12 +987,11 @@
     const answer = currentAnswer && currentAnswer.text ? currentAnswer.text : "";
     if (state.relayMode !== "relay") return;
     console.log("[orcstrator] OpenCode finished, answer " + answer.length + " chars, turns left " + state.turnBudget);
-    if (limitState.active) {
+    if (checkChatgptLimit()) {
       appendNote(
-        "ChatGPT usage limit active \u2014 OpenCode's reply stays in this panel (auto-send paused" + (limitState.untilTs ? " until ~" + resetTimeLabel() : "") + ")"
+        "OpenCode finished, but ChatGPT is usage-limited (" + detectChatgptLimit() + ") \u2014 output shown here only. It will be sent on your next prompt after the limit resets."
       );
-      syncLimitNote();
-      return finishRelay("ChatGPT limited \u2014 reply kept in panel");
+      return finishRelay("chatgpt limit \u2014 output kept in panel");
     }
     if (!answer.trim()) {
       appendNote("relay: OpenCode produced no text to send back");
@@ -1173,24 +1092,86 @@
   function armStallWatch() {
     clearStallWatch();
     state.lastEventTs = Date.now();
-    watchdogTimer = setInterval(() => {
-      if (!state.relayActive) return clearStallWatch();
-      const since = Date.now() - (state.lastEventTs || 0);
-      if (since >= 15 * 60 * 1e3) {
-        console.warn("[orcstrator] opencode silent for 15+ min \u2014 no events; run may be stalled");
-        setStatus("error", "no OpenCode activity for 15 min");
-        appendError(
-          "OpenCode has emitted no events for over 15 minutes \u2014 the run may be stalled (model/provider hang or a dead SSE pipe). Press \u23F9 stop to end the chain, or keep waiting."
-        );
-        state.lastEventTs = Date.now();
-      }
-    }, 60 * 1e3);
+    watchdogTimer = setInterval(tickWatchdog, 60 * 1e3);
   }
   function clearStallWatch() {
     if (watchdogTimer) {
       clearInterval(watchdogTimer);
       watchdogTimer = null;
     }
+  }
+  async function tickWatchdog() {
+    if (!state.relayActive) return clearStallWatch();
+    checkChatgptLimit();
+    const since = Date.now() - (state.lastEventTs || 0);
+    if (since < 15 * 60 * 1e3) return;
+    state.lastEventTs = Date.now();
+    let detail = "";
+    try {
+      const r = await bridgeGet(state.bridgeUrl, "/chatgpt/messages?chatId=" + encodeURIComponent(state.chatId));
+      const msgs = r && r.ok && r.json && r.json.data || [];
+      let last = 0;
+      for (const m of msgs) {
+        const t = m && m.time && (m.time.completed || m.time.streamed || m.time.created);
+        if (t && t > last) last = t;
+      }
+      if (last) {
+        const mins = Math.round((Date.now() - last) / 6e4);
+        detail = " Last OpenCode message: " + mins + " min ago" + (mins <= 2 ? " \u2014 OpenCode IS progressing; the SSE pipe likely died. The run still finishes at the TUI/bridge; reload then send again to re-arm the loop." : " \u2014 OpenCode itself looks stalled. Press \u23F9 stop to end the chain, or keep waiting.");
+      }
+    } catch {
+    }
+    console.warn("[orcstrator] opencode silent for 15+ min \u2014 no events" + detail);
+    setStatus("error", "no OpenCode activity for 15 min");
+    appendError("OpenCode has emitted no events for over 15 minutes." + detail);
+    notifyUser(
+      "Orcstrator \u2014 OpenCode quiet for 15+ min",
+      ("No OpenCode events for over 15 minutes." + (detail || " Press \u23F9 stop to end the chain, or keep waiting.")).trim()
+    );
+  }
+  function notifyUser(title, body) {
+    window.postMessage({ type: "orcstrator:notify", title: String(title || ""), body: String(body || "") }, "*");
+  }
+  const LIMIT_PATTERNS = [
+    /Chat paused until usage resets[^.\n]*/i,
+    /[^.\n]*reached[^.\n]{0,60}\blimit\b[^.\n]{0,120}/i,
+    /limit for chats that include files or images[^.\n]{0,120}/i,
+    /[^.\n]*maximum[^.\n]{0,40}(?:messages|length)[^.\n]{0,120}/i
+  ];
+  let lastLimitNotice = "";
+  function detectChatgptLimit() {
+    if (!document.body) return null;
+    const txt = document.body.innerText || "";
+    if (!txt) return null;
+    for (let i = 0; i < LIMIT_PATTERNS.length; i++) {
+      const m = txt.match(LIMIT_PATTERNS[i]);
+      if (m) return String(m[0]).replace(/\s+/g, " ").trim().slice(0, 180);
+    }
+    return null;
+  }
+  function checkChatgptLimit() {
+    const hit = detectChatgptLimit();
+    if (hit) {
+      state.chatgptLimited = true;
+      if (hit !== lastLimitNotice) {
+        lastLimitNotice = hit;
+        appendError("ChatGPT usage limit detected: " + hit);
+        notifyUser(
+          "Orcstrator \u2014 ChatGPT paused (usage limit)",
+          hit + " \u2014 OpenCode keeps running, its output will show in the panel only until the limit resets."
+        );
+      }
+      return true;
+    }
+    if (state.chatgptLimited) {
+      state.chatgptLimited = false;
+      lastLimitNotice = "";
+      appendNote("ChatGPT usage limit no longer detected \u2014 injecting OpenCode replies again");
+    }
+    return false;
+  }
+  function chatgptLimited() {
+    return !!state.chatgptLimited || !!detectChatgptLimit();
   }
   let bridgeModel = void 0;
   let bridgeAgent = void 0;
@@ -1361,7 +1342,6 @@
     renderRelayBadge();
     state.chatId = getCurrentChatId();
     ensurePanel();
-    armLimitWatch();
     let lastHref = location.href;
     setInterval(() => {
       if (location.href !== lastHref) {
@@ -1391,6 +1371,7 @@
       state.relayActive = true;
       state.turnBudget = state.maxTurns;
       refreshStopBtn();
+      checkChatgptLimit();
       if (capturedText) appendUser("you (\u2192 ChatGPT, it plans)", String(capturedText).slice(0, 3e3));
       startReplyWatch("planning reply");
     };
