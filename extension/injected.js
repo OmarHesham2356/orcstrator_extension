@@ -151,6 +151,7 @@
   // ---------- side panel ----------
   const PANEL_ID = "orcstrator-panel";
   let panel = null;
+  let chipEl = null; // reopen launcher, visible while the panel is hidden
   let bodyEl = null;
   let statusEl = null;
   let dirEl = null;
@@ -179,56 +180,97 @@
     panel = document.createElement("div");
     panel.id = PANEL_ID;
     panel.innerHTML =
+      '<div class="orc-accent"></div>' +
       '<div class="orc-head">' +
-      '<span class="orc-dot"></span><span class="orc-title">Orcstrator · OpenCode</span>' +
+      '<span class="orc-dot"></span><span class="orc-title">Orcstrator</span>' +
       '<span class="orc-status">idle</span>' +
-      '<button class="orc-btn orc-relay" title="toggle ChatGPT⇄OpenCode relay loop">relaying</button>' +
-      '<button class="orc-btn orc-toggle" title="collapse">–</button>' +
-      '<button class="orc-btn orc-abort" title="stop OpenCode run">stop</button>' +
-      '<button class="orc-btn orc-close" title="hide panel">×</button>' +
+      '<button class="orc-btn orc-icon orc-relay" title="toggle ChatGPT⇄OpenCode relay loop">⟳</button>' +
+      '<button class="orc-btn orc-icon orc-toggle" title="collapse">–</button>' +
+      '<button class="orc-btn orc-icon orc-close" title="hide panel — reopen it from the launcher">×</button>' +
       "</div>" +
       '<div class="orc-sub"><span class="orc-dir" title="OpenCode working directory">…</span>' +
-      '<button class="orc-btn orc-folders" title="choose working folder">folders</button></div>' +
+      '<button class="orc-btn orc-folders" title="choose working folder">📁 folders</button></div>' +
+      '<div class="orc-selrow">' +
+      '<label class="orc-selwrap" title="OpenCode model (provider/model)"><span class="orc-selcap">model</span><select class="orc-model"><option value="">…</option></select></label>' +
+      '<label class="orc-selwrap" title="OpenCode agent"><span class="orc-selcap">agent</span><select class="orc-agent"><option value="">…</option></select></label>' +
+      '<button class="orc-btn orc-abort" title="abort the OpenCode run and end the relay chain">■ stop</button>' +
+      "</div>" +
       '<div class="orc-body"></div>';
     const css = document.createElement("style");
     css.textContent =
-      "#" + PANEL_ID + "{position:fixed;top:64px;right:12px;width:380px;max-height:70vh;display:flex;flex-direction:column;z-index:2147483647;background:#0d0d12;color:#e8e8ef;border:1px solid #2c2c3a;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);font:13px/1.5 system-ui,sans-serif;overflow:hidden}" +
+      "#" + PANEL_ID + "{position:fixed;top:64px;right:12px;width:392px;max-height:74vh;display:flex;flex-direction:column;z-index:2147483647;background:rgba(15,15,22,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#e9e9f2;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.55);font:13px/1.5 system-ui,-apple-system,sans-serif;overflow:hidden}" +
       "#" + PANEL_ID + ".orc-hidden{display:none}" +
-      "#" + PANEL_ID + " .orc-head{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#15151d;border-bottom:1px solid #2c2c3a}" +
-      "#" + PANEL_ID + " .orc-dot{width:8px;height:8px;border-radius:50%;background:#555}" +
+      // reopen launcher chip
+      "#orcstrator-chip{position:fixed;bottom:18px;right:16px;z-index:2147483647;display:none;align-items:center;gap:6px;background:rgba(15,15,22,.94);color:#e9e9f2;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:7px 14px;cursor:pointer;font:600 12px/1 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.5);transition:transform .15s ease}" +
+      "#orcstrator-chip:hover{transform:translateY(-2px);border-color:#6f7bff}" +
+      "#orcstrator-chip .c-dot{width:7px;height:7px;border-radius:50%;background:#555}" +
+      "#orcstrator-chip.orc-live .c-dot{background:#f5b301;animation:orc-blink 1s infinite}" +
+      "#orcstrator-chip.orc-live.err .c-dot{background:#e5484d}" +
+      // gradient accent line
+      "#" + PANEL_ID + " .orc-accent{height:3px;background:linear-gradient(90deg,#6f7bff,#8a4bff 45%,#00c9a7);flex:none}" +
+      "#" + PANEL_ID + " .orc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 8px;background:transparent;border-bottom:1px solid rgba(255,255,255,.07)}" +
+      "#" + PANEL_ID + " .orc-dot{width:8px;height:8px;border-radius:50%;background:#555;flex:none}" +
       "#" + PANEL_ID + ".orc-busy .orc-dot{background:#f5b301;animation:orc-blink 1s infinite}" +
       "#" + PANEL_ID + ".orc-error .orc-dot{background:#e5484d}" +
       "#" + PANEL_ID + ".orc-ok .orc-dot{background:#46a758}" +
       "@keyframes orc-blink{50%{opacity:.3}}" +
-      "#" + PANEL_ID + " .orc-title{font-weight:600;font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-      "#" + PANEL_ID + " .orc-status{font-size:11px;opacity:.7}" +
-      "#" + PANEL_ID + " .orc-btn{background:#22222e;border:1px solid #33334a;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px}" +
-      "#" + PANEL_ID + " .orc-body{padding:10px;overflow-y:auto;max-height:calc(70vh - 41px)}" +
-      "#" + PANEL_ID + " .orc-collapsed .orc-body{display:none}" +
-      "#" + PANEL_ID + " .orc-msg{margin:0 0 10px;white-space:pre-wrap;word-break:break-word}" +
-      "#" + PANEL_ID + " .orc-msg.user{opacity:.75}" +
-      "#" + PANEL_ID + " .orc-msg .orc-meta{font-size:11px;opacity:.6;margin-bottom:2px}" +
-      "#" + PANEL_ID + " .orc-think{border:1px solid #2c2c3a;border-radius:8px;margin:0 0 8px}" +
-      "#" + PANEL_ID + " .orc-think summary{cursor:pointer;font-size:11px;opacity:.7;padding:4px 8px}" +
-      "#" + PANEL_ID + " .orc-think pre{margin:0;padding:4px 8px 8px;font-size:11px;opacity:.6;white-space:pre-wrap}" +
-      "#" + PANEL_ID + " .orc-err{color:#ff9a9e}" +
-      "#" + PANEL_ID + " .orc-tools{font-size:11px;opacity:.65;margin:0 0 8px}" +
-      "#" + PANEL_ID + " .orc-sub{display:flex;align-items:center;gap:8px;padding:5px 10px;background:#101018;border-bottom:1px solid #2c2c3a;font-size:11px}" +
-      "#" + PANEL_ID + " .orc-dir{flex:1;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-      "#" + PANEL_ID + " .orc-note{font-size:11px;opacity:.6;margin:0 0 8px}" +
-      "#orcstrator-folders{position:fixed;z-index:2147483647;top:120px;right:404px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:#0d0d12;color:#e8e8ef;border:1px solid #2c2c3a;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);font:13px/1.5 system-ui,sans-serif;overflow:hidden}" +
+      "#" + PANEL_ID + " .orc-title{font-weight:700;font-size:12.5px;white-space:nowrap}" +
+      "#" + PANEL_ID + " .orc-status{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.07);color:#b9b9c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;flex:1}" +
+      "#" + PANEL_ID + ".orc-busy .orc-status{background:rgba(245,179,1,.12);color:#f5b301}" +
+      "#" + PANEL_ID + ".orc-error .orc-status{background:rgba(229,72,77,.14);color:#ff9a9e}" +
+      "#" + PANEL_ID + ".orc-ok .orc-status{background:rgba(70,167,88,.14);color:#7adaa0}" +
+      "#" + PANEL_ID + " .orc-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e9e9f2;border-radius:8px;padding:3px 9px;cursor:pointer;font-size:11.5px;line-height:1.4;transition:background .15s,border-color .15s}" +
+      "#" + PANEL_ID + " .orc-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}" +
+      "#" + PANEL_ID + " .orc-btn.orc-icon{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}" +
+      "#" + PANEL_ID + " .orc-abort{flex:none;margin-left:auto;border-color:rgba(229,72,77,.45);color:#ff9a9e;background:rgba(229,72,77,.08)}" +
+      "#" + PANEL_ID + " .orc-abort:hover{background:rgba(229,72,77,.2);border-color:rgba(229,72,77,.7)}" +
+      "#" + PANEL_ID + " .orc-abort:disabled{opacity:.35;cursor:not-allowed;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:#b9b9c9}" +
+      "#" + PANEL_ID + " .orc-relay.orc-on{color:#8ab4ff;border-color:rgba(111,123,255,.5);background:rgba(111,123,255,.12)}" +
+      "#" + PANEL_ID + " .orc-sub{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06);font-size:11px}" +
+      "#" + PANEL_ID + " .orc-dir{flex:1;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}" +
+      // picker row
+      "#" + PANEL_ID + " .orc-selrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02)}" +
+      "#" + PANEL_ID + " .orc-selwrap{display:flex;align-items:center;gap:5px;min-width:0}" +
+      "#" + PANEL_ID + " .orc-selcap{font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.55}" +
+      "#" + PANEL_ID + " .orc-selwrap select{max-width:130px;background:#171722;color:#e9e9f2;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:2px 5px;font-size:11.5px;cursor:pointer;outline:none}" +
+      "#" + PANEL_ID + " .orc-selwrap select:hover{border-color:rgba(255,255,255,.3)}" +
+      "#" + PANEL_ID + " .orc-selwrap select:focus{border-color:#6f7bff}" +
+      "#" + PANEL_ID + " .orc-body{padding:10px;overflow-y:auto;flex:1;min-height:80px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}" +
+      "#" + PANEL_ID + " .orc-body::-webkit-scrollbar{width:8px}" +
+      "#" + PANEL_ID + " .orc-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}" +
+      "#" + PANEL_ID + " .orc-collapsed .orc-sub,.orc-collapsed .orc-selrow,.orc-collapsed .orc-body{display:none}" +
+      "#" + PANEL_ID + " .orc-msg{margin:0 0 10px;white-space:pre-wrap;word-break:break-word;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}" +
+      "#" + PANEL_ID + " .orc-msg.user{background:rgba(111,123,255,.08);border-color:rgba(111,123,255,.18)}" +
+      "#" + PANEL_ID + " .orc-msg .orc-meta{font-size:10.5px;opacity:.6;margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}" +
+      "#" + PANEL_ID + " .orc-think{border:1px solid rgba(255,255,255,.08);border-radius:8px;margin:0 0 8px;background:rgba(0,0,0,.2)}" +
+      "#" + PANEL_ID + " .orc-think summary{cursor:pointer;font-size:10.5px;opacity:.7;padding:3px 8px}" +
+      "#" + PANEL_ID + " .orc-think pre{margin:0;padding:2px 8px 8px;font-size:11px;opacity:.6;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}" +
+      "#" + PANEL_ID + " .orc-err{color:#ff9a9e;background:rgba(229,72,77,.08);border-color:rgba(229,72,77,.2)}" +
+      "#" + PANEL_ID + " .orc-tools{font-size:10.5px;opacity:.6;margin-top:5px}" +
+      "#" + PANEL_ID + " .orc-note{font-size:11px;opacity:.65;margin:0 0 8px;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.08)}" +
+      "#orcstrator-folders{position:fixed;z-index:2147483647;top:120px;right:420px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:rgba(15,15,22,.95);backdrop-filter:blur(14px);color:#e9e9f2;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.55);font:13px/1.5 system-ui,sans-serif;overflow:hidden}" +
       "#orcstrator-folders.orc-hidden{display:none}" +
-      "#orcstrator-folders .orc-fhead{padding:8px 10px;background:#15151d;border-bottom:1px solid #2c2c3a;font-weight:600;font-size:12px}" +
-      "#orcstrator-folders .orc-crumb{padding:6px 10px;font-size:11px;opacity:.8;word-break:break-all;border-bottom:1px solid #2c2c3a}" +
+      "#orcstrator-folders .orc-fhead{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:600;font-size:12px;background:rgba(255,255,255,.03)}" +
+      "#orcstrator-folders .orc-crumb{padding:6px 10px;font-size:11px;opacity:.85;word-break:break-all;border-bottom:1px solid rgba(255,255,255,.06)}" +
       "#orcstrator-folders .orc-crumb button{background:none;border:none;color:#8ab4ff;cursor:pointer;font-size:11px;padding:0 4px}" +
       "#orcstrator-folders .orc-flist{overflow-y:auto;padding:4px}" +
-      "#orcstrator-folders .orc-fitem{display:block;width:100%;text-align:left;background:none;border:none;color:#e8e8ef;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-      "#orcstrator-folders .orc-fitem.dir:hover{background:#1d1d28}" +
-      "#orcstrator-folders .orc-fitem.file{opacity:.4;cursor:default}" +
-      "#orcstrator-folders .orc-ffoot{display:flex;gap:8px;padding:8px 10px;border-top:1px solid #2c2c3a}" +
-      "#orcstrator-folders .orc-ffoot .orc-btn{flex:1;padding:6px;cursor:pointer}";
+      "#orcstrator-folders .orc-fitem{display:block;width:100%;text-align:left;background:none;border:none;color:#e9e9f2;padding:5px 9px;border-radius:7px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+      "#orcstrator-folders .orc-fitem.dir:hover{background:rgba(255,255,255,.07)}" +
+      "#orcstrator-folders .orc-fitem.file{opacity:.35;cursor:default}" +
+      "#orcstrator-folders .orc-ffoot{display:flex;gap:8px;padding:8px 10px;border-top:1px solid rgba(255,255,255,.09)}" +
+      "#orcstrator-folders .orc-ffoot .orc-btn{flex:1;padding:6px;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e9e9f2;border-radius:8px;font-size:12px}" +
+      "#orcstrator-folders .orc-ffoot .orc-use{border-color:rgba(70,167,88,.5);color:#7adaa0;background:rgba(70,167,88,.1)}";
     document.documentElement.appendChild(css);
     document.documentElement.appendChild(panel);
+
+    // Floating launcher chip: the ONLY way back in after hiding (×).
+    chipEl = document.createElement("button");
+    chipEl.id = "orcstrator-chip";
+    chipEl.innerHTML = '<span class="c-dot"></span>Orcstrator';
+    chipEl.title = "reopen the Orcstrator panel";
+    chipEl.onclick = () => showPanel();
+    document.documentElement.appendChild(chipEl);
+
     bodyEl = panel.querySelector(".orc-body");
     statusEl = panel.querySelector(".orc-status");
     dirEl = panel.querySelector(".orc-dir");
@@ -242,7 +284,7 @@
       );
     };
     renderRelayBadge();
-    panel.querySelector(".orc-close").onclick = () => panel.classList.add("orc-hidden");
+    panel.querySelector(".orc-close").onclick = () => hidePanel();
     panel.querySelector(".orc-toggle").onclick = (ev) => {
       state.collapsed = !state.collapsed;
       panel.classList.toggle("orc-collapsed", state.collapsed);
@@ -253,14 +295,109 @@
         await bridgePost(state.bridgeUrl, "/chatgpt/abort", { chatId: state.chatId });
       } catch (e) {}
       stopRelayChain();
+      appendNote("stopped by user — OpenCode run aborted, chain ended");
       setStatus("idle", "aborted");
+      refreshStopBtn();
     };
     panel.querySelector(".orc-folders").onclick = () => openFolders(state.directory || null);
+    populatePickers();
     return panel;
+  }
+
+  function panelVisible() {
+    return !!(panel && document.contains(panel)) && !panel.classList.contains("orc-hidden");
+  }
+  function showPanel() {
+    ensurePanel();
+    panel.classList.remove("orc-hidden");
+    chipEl.style.display = "none";
+  }
+  function hidePanel() {
+    ensurePanel();
+    panel.classList.add("orc-hidden");
+    chipEl.style.display = "flex";
+  }
+
+  // ---------- in-panel model/agent dropdowns ----------
+  // Live dropdowns replace the popup datalists as the primary picker.
+  // Changes apply instantly (used by the very next relay/send) and persist
+  // to the same "orc" config the popup reads.
+  function writeCfg(patch) {
+    window.postMessage({ type: "orcstrator:config-write", patch }, "*");
+  }
+  function fillSel(sel, items, saved, emptyLabel) {
+    sel.innerHTML = "";
+    const o0 = document.createElement("option");
+    o0.value = "";
+    o0.textContent = emptyLabel;
+    sel.appendChild(o0);
+    for (const it of items) {
+      const o = document.createElement("option");
+      o.value = it.value;
+      o.textContent = it.label;
+      sel.appendChild(o);
+    }
+    if (saved) {
+      if (!Array.from(sel.options).some((o) => o.value === saved)) {
+        const o = document.createElement("option");
+        o.value = saved;
+        o.textContent = saved + " (saved)";
+        sel.appendChild(o);
+      }
+      sel.value = saved;
+    }
+  }
+  async function populatePickers() {
+    if (!panel) return;
+    const mSel = panel.querySelector(".orc-model");
+    const aSel = panel.querySelector(".orc-agent");
+    try {
+      const [mr, ar] = await Promise.all([
+        bridgeGet(state.bridgeUrl, "/models"),
+        bridgeGet(state.bridgeUrl, "/agents"),
+      ]);
+      const models = ((mr && mr.ok && mr.json.data) || []).map((x) => ({
+        value: x.providerID + "/" + x.id,
+        label: x.providerID + "/" + x.id,
+      }));
+      const agents = ((ar && ar.ok && ar.json.data) || []).map((x) => ({
+        value: x.id,
+        label: x.name || x.id,
+      }));
+      fillSel(mSel, models, bridgeModel, "auto (default)");
+      fillSel(aSel, agents, bridgeAgent, "default agent");
+      mSel.onchange = () => {
+        bridgeModel = mSel.value || undefined;
+        writeCfg({ model: bridgeModel });
+        appendNote("model set to " + (bridgeModel || "auto") + " (applies to the next message)");
+      };
+      aSel.onchange = () => {
+        bridgeAgent = aSel.value || undefined;
+        writeCfg({ agent: bridgeAgent });
+        appendNote("agent set to " + (bridgeAgent || "default") + " (applies to the next message)");
+      };
+    } catch {
+      // Bridge down: leave the (saved) selection editable via popup.
+      fillSel(mSel, [], bridgeModel, "bridge offline");
+      fillSel(aSel, [], bridgeAgent, "bridge offline");
+    }
+    refreshStopBtn();
+  }
+  function refreshStopBtn() {
+    if (!panel) return;
+    const stop = panel.querySelector(".orc-abort");
+    if (!stop) return;
+    const running = state.relayActive || state.busy;
+    stop.disabled = !running;
+    stop.textContent = running ? "■ stop" : "■ stop";
+    stop.title = running
+      ? "abort the OpenCode run and end the relay chain"
+      : "nothing running";
   }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
-    relayBadgeEl.textContent = state.relayMode === "relay" ? "relaying ⟳" : "panel-only";
+    relayBadgeEl.textContent = state.relayMode === "relay" ? "⟳" : "◇";
+    relayBadgeEl.classList.toggle("orc-on", state.relayMode === "relay");
     relayBadgeEl.title =
       state.relayMode === "relay"
         ? "Relay loop is ON: ChatGPT's replies are sent to OpenCode and OpenCode answers back into the chat. Click for panel-only."
@@ -280,9 +417,8 @@
       dirEl.title = "OpenCode working directory: " + (dir || "(bridge default)");
     }
   }
-  function appendNote(text) {
-    ensurePanel();
-    panel.classList.remove("orc-hidden");
+  function appendNote() {
+    ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-note";
     d.textContent = text;
@@ -356,24 +492,29 @@
   }
   function setStatus(kind, text) {
     ensurePanel();
-    panel.classList.remove("orc-hidden", "orc-busy", "orc-error", "orc-ok");
+    panel.classList.remove("orc-busy", "orc-error", "orc-ok");
     if (kind === "busy") panel.classList.add("orc-busy");
     else if (kind === "error") panel.classList.add("orc-error");
     else if (kind === "ok") panel.classList.add("orc-ok");
+    // NOTE: visibility is owned by the × button + launcher chip now;
+    // status changes must not force-reopen a panel the user hid.
     if (statusEl) statusEl.textContent = text || kind;
+    if (!panelVisible() && chipEl) {
+      chipEl.classList.toggle("orc-live", kind === "busy");
+      chipEl.classList.toggle("err", kind === "error");
+    }
+    refreshStopBtn();
   }
-  function appendUser(text, meta) {
-    ensurePanel();
-    panel.classList.remove("orc-hidden");
+  function appendUser() {
+    ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-msg user";
     d.innerHTML = '<div class="orc-meta">' + esc(meta || "you → OpenCode") + "</div><div>" + esc(text).slice(0, 4000) + "</div>";
     bodyEl.appendChild(d);
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
-  function startAnswer(meta) {
-    ensurePanel();
-    panel.classList.remove("orc-hidden");
+  function startAnswer() {
+    ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const wrap = document.createElement("div");
     wrap.className = "orc-msg assistant";
     wrap.innerHTML =
@@ -413,9 +554,8 @@
     d.textContent = note;
     currentAnswer.toolsEl.appendChild(d);
   }
-  function appendError(msg) {
-    ensurePanel();
-    panel.classList.remove("orc-hidden");
+  function appendError() {
+    ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-msg orc-err";
     d.textContent = "error: " + msg;
@@ -1106,6 +1246,7 @@
     state.turnBudget = 0;
     state.busy = false;
     state.busyLabel = "";
+    refreshStopBtn();
     if (reason) setStatus("idle", "relay stopped");
   }
 
@@ -1314,7 +1455,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.4.9 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.5.0 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
 
     // Relay mode: ChatGPT must actually SEND the message (we never block it).
     // We passively notice the send, then watch for ChatGPT's reply.
@@ -1324,6 +1465,7 @@
       if (state.relayActive) return; // chain already running for this user msg
       state.relayActive = true;
       state.turnBudget = state.maxTurns;
+      refreshStopBtn();
       if (capturedText) appendUser("you (→ ChatGPT, it plans)", String(capturedText).slice(0, 3000));
       startReplyWatch("planning reply");
     };

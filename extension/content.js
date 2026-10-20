@@ -128,6 +128,24 @@
       } catch (err) {
         reply({ ok: false, error: String(err) });
       }
+    } else if (e.data.type === "orcstrator:config-write") {
+      // Merge a config patch from the page (panel dropdowns) into storage.
+      (async () => {
+        try {
+          let cur = await new Promise((res) => {
+            try {
+              const p = ext.storage.local.get("orc");
+              if (p && typeof p.then === "function") p.then((v) => res((v && v.orc) || {}), () => res({}));
+              else ext.storage.local.get("orc", (v) => res((v && v.orc) || {}));
+            } catch { res({}); }
+          });
+          const patch = e.data.patch || {};
+          // undefined values DELETE the key (e.g. agent back to default).
+          const merged = Object.assign({}, cur, patch);
+          for (const k of Object.keys(patch)) if (patch[k] === undefined) delete merged[k];
+          ext.storage.local.set({ orc: merged }, () => {});
+        } catch {}
+      })();
     }
   });
 

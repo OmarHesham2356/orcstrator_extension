@@ -107,6 +107,13 @@ Notes:
 
 ## 3. Develop
 
+### The panel (v0.5.0 UI)
+
+- **Hide it freely**: the `×` button hides the panel; an **Orcstrator launcher chip** stays bottom-right of the page — click it to reopen anytime. While a loop runs while hidden, the chip's dot pulses (amber = working, red = error).
+- **Model & agent dropdowns** live in the panel: pick from every OpenCode model (`provider/id`) and agent. Choices apply from the very next message and are saved (the popup still works too).
+- **Stop button** is red, enabled only while a run/relay chain is active, and aborts the OpenCode run plus ends the loop.
+- `⟳` toggles the ChatGPT ⇄ OpenCode relay loop on/off; `–` collapses the panel to the header.
+
 ```bash
 ./node_modules/.bin/tsc --noEmit   # typecheck bridge
 node scripts/build-ext.mjs         # rebuild both extension targets
