@@ -113,6 +113,11 @@ Notes:
 - **Model & agent dropdowns** live in the panel: pick from every OpenCode model (`provider/id`) and agent. Choices apply from the very next message and are saved (the popup still works too).
 - **Stop button** is red, enabled only while a run/relay chain is active, and aborts the OpenCode run plus ends the loop.
 - `⟳` toggles the ChatGPT ⇄ OpenCode relay loop on/off; `–` collapses the panel to the header.
+- **Resilient loop end detection (v0.6.1)**: OpenCode normally ends with `session.execution.succeeded`,
+  but stalled/aborted runs can go `session.idle` with no end event — the relay now treats that as
+  finish (and reports "no text to send back" if there is none), plus a watchdog warns (panel + console)
+  if OpenCode is eventless for 15+ minutes instead of waiting forever in silence. Errors also appear
+  in the browser console now, not only in the panel.
 - **`⌨ TUI`** opens this conversation's OpenCode session in a live terminal window (spawned by the
   bridge, which runs on your machine): a new tmux window when `TMUX` is set, else a desktop
   **kitty**/**alacritty** window cd'd into the session's folder. If no terminal can be spawned

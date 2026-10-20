@@ -459,6 +459,7 @@
     currentAnswer.toolsEl.appendChild(d);
   }
   function appendError(msg) {
+    console.warn("[orcstrator] error:", msg);
     ensurePanel();
     const d = document.createElement("div");
     d.className = "orc-msg orc-err";
@@ -973,6 +974,7 @@
         setDirLabel(r.json.directory);
       }
       attachSse(state.chatId, state.bridgeUrl);
+      armStallWatch();
       startAnswer("opencode");
     } catch (err) {
       console.warn("[orcstrator] relay error:", err);
@@ -1076,8 +1078,32 @@
     state.turnBudget = 0;
     state.busy = false;
     state.busyLabel = "";
+    clearStallWatch();
     refreshStopBtn();
     if (reason) setStatus("idle", "relay stopped");
+  }
+  let watchdogTimer = null;
+  function armStallWatch() {
+    clearStallWatch();
+    state.lastEventTs = Date.now();
+    watchdogTimer = setInterval(() => {
+      if (!state.relayActive) return clearStallWatch();
+      const since = Date.now() - (state.lastEventTs || 0);
+      if (since >= 15 * 60 * 1e3) {
+        console.warn("[orcstrator] opencode silent for 15+ min \u2014 no events; run may be stalled");
+        setStatus("error", "no OpenCode activity for 15 min");
+        appendError(
+          "OpenCode has emitted no events for over 15 minutes \u2014 the run may be stalled (model/provider hang or a dead SSE pipe). Press \u23F9 stop to end the chain, or keep waiting."
+        );
+        state.lastEventTs = Date.now();
+      }
+    }, 60 * 1e3);
+  }
+  function clearStallWatch() {
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer);
+      watchdogTimer = null;
+    }
   }
   let bridgeModel = void 0;
   let bridgeAgent = void 0;
@@ -1098,6 +1124,7 @@
     }
   }
   function routeEvent(type, payload) {
+    state.lastEventTs = Date.now();
     const d = payload && payload.data || {};
     switch (type) {
       case "session.text.delta":
@@ -1121,6 +1148,13 @@
         setStatus("ok", "done");
         state.busy = false;
         state.busyLabel = "";
+        if (state.relayMode === "relay") onOpenCodeFinished();
+        break;
+      case "session.idle":
+        state.busy = false;
+        state.busyLabel = "";
+        setStatus("ok", "done (idle)");
+        console.log("[orcstrator] opencode session idle (no succeeded/failed event) \u2014 treating as finished");
         if (state.relayMode === "relay") onOpenCodeFinished();
         break;
       case "session.step.ended":
@@ -1261,7 +1295,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.6.0 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.6.1 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
     const noticeSend = (capturedText) => {
       if (state.relayMode !== "relay") return;
       if (isSelfSend()) return;

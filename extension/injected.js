@@ -609,6 +609,7 @@
     currentAnswer.toolsEl.appendChild(d);
   }
   function appendError(msg) {
+    console.warn("[orcstrator] error:", msg); // visible in the console too
     ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-msg orc-err";
@@ -1184,6 +1185,7 @@
         setDirLabel(r.json.directory);
       }
       attachSse(state.chatId, state.bridgeUrl);
+      armStallWatch();
       startAnswer("opencode");
     } catch (err) {
       console.warn("[orcstrator] relay error:", err);
@@ -1300,8 +1302,39 @@
     state.turnBudget = 0;
     state.busy = false;
     state.busyLabel = "";
+    clearStallWatch();
     refreshStopBtn();
     if (reason) setStatus("idle", "relay stopped");
+  }
+
+  // ---------- OpenCode event watchdog ----------
+  // OpenCode runs can legitimately take many minutes, but if NO events at all
+  // arrive for 15 minutes (silent stall / dead provider / SSE hiccup) tell the
+  // user instead of silently waiting forever. Non-destructive: if events
+  // resume, the relay continues normally.
+  let watchdogTimer = null;
+  function armStallWatch() {
+    clearStallWatch();
+    state.lastEventTs = Date.now();
+    watchdogTimer = setInterval(() => {
+      if (!state.relayActive) return clearStallWatch();
+      const since = Date.now() - (state.lastEventTs || 0);
+      if (since >= 15 * 60 * 1000) {
+        console.warn("[orcstrator] opencode silent for 15+ min — no events; run may be stalled");
+        setStatus("error", "no OpenCode activity for 15 min");
+        appendError(
+          "OpenCode has emitted no events for over 15 minutes — the run may be stalled " +
+            "(model/provider hang or a dead SSE pipe). Press ⏹ stop to end the chain, or keep waiting."
+        );
+        state.lastEventTs = Date.now(); // report once per silent window
+      }
+    }, 60 * 1000);
+  }
+  function clearStallWatch() {
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer);
+      watchdogTimer = null;
+    }
   }
 
   // The model/agent the bridge should use for relays (captured once at boot).
@@ -1328,6 +1361,8 @@
   }
 
   function routeEvent(type, payload) {
+    // Watchdog bookkeeping: any event proves OpenCode is alive/progressing.
+    state.lastEventTs = Date.now();
     const d = (payload && payload.data) || {};
     switch (type) {
       case "session.text.delta":
@@ -1351,6 +1386,16 @@
         setStatus("ok", "done");
         state.busy = false;
         state.busyLabel = "";
+        if (state.relayMode === "relay") onOpenCodeFinished();
+        break;
+      case "session.idle":
+        // Backstop: some end paths only emit the session going idle
+        // (e.g. a stalled/cancelled tool exec, abort) without a
+        // succeeded/failed event. Without this the relay waits forever.
+        state.busy = false;
+        state.busyLabel = "";
+        setStatus("ok", "done (idle)");
+        console.log("[orcstrator] opencode session idle (no succeeded/failed event) — treating as finished");
         if (state.relayMode === "relay") onOpenCodeFinished();
         break;
       case "session.step.ended":
@@ -1509,7 +1554,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.6.0 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.6.1 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
 
     // Relay mode: ChatGPT must actually SEND the message (we never block it).
     // We passively notice the send, then watch for ChatGPT's reply.
