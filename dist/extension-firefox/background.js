@@ -1,6 +1,6 @@
 // dist/extension-firefox/background.js
 var ext = typeof globalThis.browser !== "undefined" ? globalThis.browser : globalThis.chrome;
-console.log("[orcstrator] background v0.4.8 live");
+console.log("[orcstrator] background v0.4.9 live");
 var IS_FIREFOX = typeof navigator !== "undefined" && /Firefox\//.test(navigator.userAgent);
 ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const hasSendResponse = typeof sendResponse === "function";

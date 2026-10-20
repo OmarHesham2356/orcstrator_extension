@@ -120,15 +120,32 @@
     const label = (
       (btn.getAttribute("aria-label") || "") +
       " " +
-      (btn.getAttribute("data-testid") || "")
+      (btn.getAttribute("data-testid") || "") +
+      " " +
+      (btn.innerText || "")
     ).toLowerCase();
+    if (label.includes("stop")) return false; // streaming stop button
     if (label.includes("send")) return true;
-    if (label.includes("stop")) return false;
+    // Only an actual type=submit counts. NOTE: never treat "any button
+    // inside a form that has a textbox" as send — that rule used to match
+    // the + / attach / tools icons, which come EARLIER in DOM order, so
+    // the auto-click hit the attach ("+") button instead of Send.
     if (btn.getAttribute("type") === "submit" && btn.closest("form")) return true;
-    const form = btn.closest("form");
-    if (form && (form.querySelector("textarea") || form.querySelector('[contenteditable="true"]')))
-      return true;
     return false;
+  }
+  // Pick the best send widget: dedicated testid > aria-label send > the
+  // last enabled type=submit (send is the rightmost composer action).
+  function findSendBtn() {
+    return (
+      document.querySelector('[data-testid="send-button"]') ||
+      document.querySelector('button[aria-label*="send" i]') ||
+      (() => {
+        const subs = Array.from(document.querySelectorAll('form button[type="submit"]')).filter(
+          (b) => !b.disabled && b.getAttribute("aria-disabled") !== "true"
+        );
+        return subs.length ? subs[subs.length - 1] : null;
+      })()
+    );
   }
 
   // ---------- side panel ----------
@@ -761,11 +778,14 @@
     apiPoller.warned = false;
     let failures = 0;
     const tick = async () => {
-      if (!replyWatch.active || replyWatch.gen !== gen) return stopApiPoller();
+      if (!replyWatch.active || replyWatch.gen !== gen) return; // stale tick: silent, NEVER stop the live poller
       const convId = state.chatId;
       if (!convId || /^(local|unknown)/.test(convId)) return; // no URL uuid yet
       try {
         const r = await chatgptApiGet("/conversation/" + encodeURIComponent(convId));
+        // Re-verify ownership AFTER the await: the watch may have been
+        // consumed/stopped while this request was in flight.
+        if (!replyWatch.active || replyWatch.gen !== gen) return;
         if (!r.ok) {
           failures += 1;
           if (failures === 3 && !apiPoller.warned) {
@@ -1033,12 +1053,7 @@
       return false;
     }
     await new Promise((r2) => setTimeout(r2, 150));
-    const send =
-      document.querySelector('[data-testid="send-button"]') ||
-      (Array.from(document.querySelectorAll("button")).find(
-        (b) => isSendBtn(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true"
-      ) ||
-        null);
+    const send = findSendBtn();
     if (!send || !send.isConnected) return false;
     selfInjecting = Date.now() + 1500; // our own send must not reset turn budget
     send.click();
@@ -1067,11 +1082,7 @@
         }
         await new Promise((r2) => setTimeout(r2, 1200));
         if ((readPromptText() || "").includes("[OpenCode]")) {
-          const send2 =
-            document.querySelector('[data-testid="send-button"]') ||
-            Array.from(document.querySelectorAll("button")).find(
-              (b) => isSendBtn(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true"
-            );
+          const send2 = findSendBtn();
           if (send2) send2.click();
           console.log("[orcstrator] auto-send retry via send button");
         } else {
@@ -1303,7 +1314,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.4.8 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.4.9 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
 
     // Relay mode: ChatGPT must actually SEND the message (we never block it).
     // We passively notice the send, then watch for ChatGPT's reply.

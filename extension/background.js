@@ -6,7 +6,7 @@
 // http://127.0.0.1:* from chatgpt.com only works from the background.
 const ext = (typeof globalThis.browser !== "undefined" ? globalThis.browser : globalThis.chrome);
 
-console.log("[orcstrator] background v0.4.8 live");
+console.log("[orcstrator] background v0.4.9 live");
 
 // ---------- one-shot relay (prompts, health, browse, models, ...) ----------
 // Message-response contract differs per engine:

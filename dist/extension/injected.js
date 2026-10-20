@@ -97,14 +97,19 @@
   }
   function isSendBtn(btn) {
     if (!btn) return false;
-    const label = ((btn.getAttribute("aria-label") || "") + " " + (btn.getAttribute("data-testid") || "")).toLowerCase();
-    if (label.includes("send")) return true;
+    const label = ((btn.getAttribute("aria-label") || "") + " " + (btn.getAttribute("data-testid") || "") + " " + (btn.innerText || "")).toLowerCase();
     if (label.includes("stop")) return false;
+    if (label.includes("send")) return true;
     if (btn.getAttribute("type") === "submit" && btn.closest("form")) return true;
-    const form = btn.closest("form");
-    if (form && (form.querySelector("textarea") || form.querySelector('[contenteditable="true"]')))
-      return true;
     return false;
+  }
+  function findSendBtn() {
+    return document.querySelector('[data-testid="send-button"]') || document.querySelector('button[aria-label*="send" i]') || (() => {
+      const subs = Array.from(document.querySelectorAll('form button[type="submit"]')).filter(
+        (b) => !b.disabled && b.getAttribute("aria-disabled") !== "true"
+      );
+      return subs.length ? subs[subs.length - 1] : null;
+    })();
   }
   const PANEL_ID = "orcstrator-panel";
   let panel = null;
@@ -623,11 +628,12 @@
     apiPoller.warned = false;
     let failures = 0;
     const tick = async () => {
-      if (!replyWatch.active || replyWatch.gen !== gen) return stopApiPoller();
+      if (!replyWatch.active || replyWatch.gen !== gen) return;
       const convId = state.chatId;
       if (!convId || /^(local|unknown)/.test(convId)) return;
       try {
         const r = await chatgptApiGet("/conversation/" + encodeURIComponent(convId));
+        if (!replyWatch.active || replyWatch.gen !== gen) return;
         if (!r.ok) {
           failures += 1;
           if (failures === 3 && !apiPoller.warned) {
@@ -881,9 +887,7 @@
       return false;
     }
     await new Promise((r2) => setTimeout(r2, 150));
-    const send = document.querySelector('[data-testid="send-button"]') || (Array.from(document.querySelectorAll("button")).find(
-      (b) => isSendBtn(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true"
-    ) || null);
+    const send = findSendBtn();
     if (!send || !send.isConnected) return false;
     selfInjecting = Date.now() + 1500;
     send.click();
@@ -907,9 +911,7 @@
         }
         await new Promise((r2) => setTimeout(r2, 1200));
         if ((readPromptText() || "").includes("[OpenCode]")) {
-          const send2 = document.querySelector('[data-testid="send-button"]') || Array.from(document.querySelectorAll("button")).find(
-            (b) => isSendBtn(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true"
-          );
+          const send2 = findSendBtn();
           if (send2) send2.click();
           console.log("[orcstrator] auto-send retry via send button");
         } else {
@@ -1116,7 +1118,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.4.8 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.4.9 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
     const noticeSend = (capturedText) => {
       if (state.relayMode !== "relay") return;
       if (isSelfSend()) return;
