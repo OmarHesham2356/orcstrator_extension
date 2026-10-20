@@ -3,10 +3,11 @@ import express from "express";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { loadConfig } from "./config.js";
 import { OpenCodeClient } from "./opencode-client.js";
 
-const BRIDGE_VERSION = "0.3.0";
+const BRIDGE_VERSION = "0.4.0";
 
 const config = loadConfig();
 const client = new OpenCodeClient(
@@ -163,6 +164,61 @@ app.post("/chatgpt/abort", async (req, res) => {
   } catch (e: any) {
     res.status(500).json({ error: e?.message || String(e) });
   }
+});
+
+// ---------- Open the conversation's OpenCode TUI ----------
+// Spawns a desktop terminal running `opencode -s <ocSessionId>` cd'd into the
+// session's working directory, so the user can watch the relay loop live.
+// Priority: inside tmux -> new tmux window; else kitty / alacritty;
+// otherwise tell the extension to copy the command to the clipboard.
+function trySpawn(bin: string, args: string[], cwd: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const p = spawn(bin, args, { stdio: "ignore", detached: true, cwd });
+      let done = false;
+      p.on("error", () => {
+        if (!done) { done = true; resolve(false); }
+      });
+      p.on("exit", (code) => {
+        if (!done) { done = true; resolve(code === 0); }
+      });
+      setTimeout(() => {
+        // Still up after 400ms -> treat as a launched terminal window.
+        if (!done) { done = true; resolve(true); }
+      }, 400);
+      p.unref();
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+app.post("/tui", async (req, res) => {
+  const { chatId } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: "chatId required" });
+  const c = convs.get(chatId);
+  if (!c) {
+    return res.json({
+      ok: false,
+      method: "manual",
+      error: "no session for this chat yet — send one message first (sessions are rebuilt after a bridge restart)",
+      command: "",
+    });
+  }
+  const command = `cd "${c.directory}" && opencode -s ${c.ocSessionId}`;
+  const attempts: Array<{ name: string; method: string; args: string[] }> = [];
+  if (process.env.TMUX) {
+    attempts.push({ name: "tmux", method: "tmux", args: ["new-window", "-c", c.directory, `opencode -s ${c.ocSessionId}`] });
+  }
+  attempts.push({ name: "kitty", method: "kitty", args: ["--directory", c.directory, "opencode", "-s", c.ocSessionId] });
+  attempts.push({ name: "alacritty", method: "alacritty", args: ["--working-directory", c.directory, "-e", "opencode", "-s", c.ocSessionId] });
+  attempts.push({ name: "tmux-new-server", method: "tmux", args: ["new-session", "-c", c.directory, `opencode -s ${c.ocSessionId}`] });
+  for (const a of attempts) {
+    if (await trySpawn(a.name, a.args, c.directory)) {
+      return res.json({ ok: true, method: a.method, session: c.ocSessionId, directory: c.directory, command });
+    }
+  }
+  res.json({ ok: false, method: "manual", error: "no usable terminal found", command, session: c.ocSessionId, directory: c.directory });
 });
 
 const sseClients = new Map<string, Set<express.Response>>();

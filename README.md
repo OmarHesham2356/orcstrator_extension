@@ -113,6 +113,12 @@ Notes:
 - **Model & agent dropdowns** live in the panel: pick from every OpenCode model (`provider/id`) and agent. Choices apply from the very next message and are saved (the popup still works too).
 - **Stop button** is red, enabled only while a run/relay chain is active, and aborts the OpenCode run plus ends the loop.
 - `⟳` toggles the ChatGPT ⇄ OpenCode relay loop on/off; `–` collapses the panel to the header.
+- **`⌨ TUI`** opens this conversation's OpenCode session in a live terminal window (spawned by the
+  bridge, which runs on your machine): a new tmux window when `TMUX` is set, else a desktop
+  **kitty**/**alacritty** window cd'd into the session's folder. If no terminal can be spawned
+  (e.g. systemd-run bridge), the exact `cd … && opencode -s …` command is copied to your clipboard
+  instead — each ChatGPT conversation maps to one OpenCode session, and the TUI streams the loop
+  live (ChatGPT's prompt lands, tools fire, the reply streams).
 
 ```bash
 ./node_modules/.bin/tsc --noEmit   # typecheck bridge

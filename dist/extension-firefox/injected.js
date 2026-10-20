@@ -141,7 +141,7 @@
     if (panel && document.contains(panel)) return panel;
     panel = document.createElement("div");
     panel.id = PANEL_ID;
-    panel.innerHTML = '<div class="orc-accent"></div><div class="orc-head"><span class="orc-dot"></span><span class="orc-title">Orcstrator</span><span class="orc-status">idle</span><button class="orc-btn orc-icon orc-relay" title="toggle ChatGPT\u21C4OpenCode relay loop">\u27F3</button><button class="orc-btn orc-icon orc-toggle" title="collapse">\u2013</button><button class="orc-btn orc-icon orc-close" title="hide panel \u2014 reopen it from the launcher">\xD7</button></div><div class="orc-sub"><span class="orc-dir" title="OpenCode working directory">\u2026</span><button class="orc-btn orc-folders" title="choose working folder">\u{1F4C1} folders</button></div><div class="orc-selrow"><label class="orc-selwrap" title="OpenCode model (provider/model)"><span class="orc-selcap">model</span><select class="orc-model"><option value="">\u2026</option></select></label><label class="orc-selwrap" title="OpenCode agent"><span class="orc-selcap">agent</span><select class="orc-agent"><option value="">\u2026</option></select></label><button class="orc-btn orc-abort" title="abort the OpenCode run and end the relay chain">\u25A0 stop</button></div><div class="orc-body"></div>';
+    panel.innerHTML = `<div class="orc-accent"></div><div class="orc-head"><span class="orc-dot"></span><span class="orc-title">Orcstrator</span><span class="orc-status">idle</span><button class="orc-btn orc-icon orc-relay" title="toggle ChatGPT\u21C4OpenCode relay loop">\u27F3</button><button class="orc-btn orc-icon orc-toggle" title="collapse">\u2013</button><button class="orc-btn orc-icon orc-close" title="hide panel \u2014 reopen it from the launcher">\xD7</button></div><div class="orc-sub"><span class="orc-dir" title="OpenCode working directory">\u2026</span><button class="orc-btn orc-tui" title="watch this conversation's OpenCode session in a live terminal TUI">\u2328 TUI</button><button class="orc-btn orc-folders" title="choose working folder">\u{1F4C1} folders</button></div><div class="orc-selrow"><label class="orc-selwrap" title="OpenCode model (provider/model)"><span class="orc-selcap">model</span><select class="orc-model"><option value="">\u2026</option></select></label><label class="orc-selwrap" title="OpenCode agent"><span class="orc-selcap">agent</span><select class="orc-agent"><option value="">\u2026</option></select></label><button class="orc-btn orc-abort" title="abort the OpenCode run and end the relay chain">\u25A0 stop</button></div><div class="orc-body"></div>`;
     const css = document.createElement("style");
     css.textContent = "#" + PANEL_ID + "{position:fixed;top:64px;right:12px;width:392px;max-height:74vh;display:flex;flex-direction:column;z-index:2147483647;background:rgba(15,15,22,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#e9e9f2;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.55);font:13px/1.5 system-ui,-apple-system,sans-serif;overflow:hidden}#" + PANEL_ID + ".orc-hidden{display:none}#orcstrator-chip{position:fixed;bottom:18px;right:16px;z-index:2147483647;display:none;align-items:center;gap:6px;background:rgba(15,15,22,.94);color:#e9e9f2;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:7px 14px;cursor:pointer;font:600 12px/1 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.5);transition:transform .15s ease}#orcstrator-chip:hover{transform:translateY(-2px);border-color:#6f7bff}#orcstrator-chip .c-dot{width:7px;height:7px;border-radius:50%;background:#555}#orcstrator-chip.orc-live .c-dot{background:#f5b301;animation:orc-blink 1s infinite}#orcstrator-chip.orc-live.err .c-dot{background:#e5484d}#" + PANEL_ID + " .orc-accent{height:3px;background:linear-gradient(90deg,#6f7bff,#8a4bff 45%,#00c9a7);flex:none}#" + PANEL_ID + " .orc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 8px;background:transparent;border-bottom:1px solid rgba(255,255,255,.07)}#" + PANEL_ID + " .orc-dot{width:8px;height:8px;border-radius:50%;background:#555;flex:none}#" + PANEL_ID + ".orc-busy .orc-dot{background:#f5b301;animation:orc-blink 1s infinite}#" + PANEL_ID + ".orc-error .orc-dot{background:#e5484d}#" + PANEL_ID + ".orc-ok .orc-dot{background:#46a758}@keyframes orc-blink{50%{opacity:.3}}#" + PANEL_ID + " .orc-title{font-weight:700;font-size:12.5px;white-space:nowrap}#" + PANEL_ID + " .orc-status{font-size:10.5px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.07);color:#b9b9c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px;flex:1}#" + PANEL_ID + ".orc-busy .orc-status{background:rgba(245,179,1,.12);color:#f5b301}#" + PANEL_ID + ".orc-error .orc-status{background:rgba(229,72,77,.14);color:#ff9a9e}#" + PANEL_ID + ".orc-ok .orc-status{background:rgba(70,167,88,.14);color:#7adaa0}#" + PANEL_ID + " .orc-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e9e9f2;border-radius:8px;padding:3px 9px;cursor:pointer;font-size:11.5px;line-height:1.4;transition:background .15s,border-color .15s}#" + PANEL_ID + " .orc-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}#" + PANEL_ID + " .orc-btn.orc-icon{width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}#" + PANEL_ID + " .orc-abort{flex:none;margin-left:auto;border-color:rgba(229,72,77,.45);color:#ff9a9e;background:rgba(229,72,77,.08)}#" + PANEL_ID + " .orc-abort:hover{background:rgba(229,72,77,.2);border-color:rgba(229,72,77,.7)}#" + PANEL_ID + " .orc-abort:disabled{opacity:.35;cursor:not-allowed;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:#b9b9c9}#" + PANEL_ID + " .orc-relay.orc-on{color:#8ab4ff;border-color:rgba(111,123,255,.5);background:rgba(111,123,255,.12)}#" + PANEL_ID + " .orc-sub{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06);font-size:11px}#" + PANEL_ID + " .orc-dir{flex:1;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}#" + PANEL_ID + " .orc-selrow{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02)}#" + PANEL_ID + " .orc-selwrap{display:flex;align-items:center;gap:5px;min-width:0}#" + PANEL_ID + " .orc-selcap{font-size:10px;text-transform:uppercase;letter-spacing:.5px;opacity:.55}#" + PANEL_ID + " .orc-selwrap select{max-width:130px;background:#171722;color:#e9e9f2;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:2px 5px;font-size:11.5px;cursor:pointer;outline:none}#" + PANEL_ID + " .orc-selwrap select:hover{border-color:rgba(255,255,255,.3)}#" + PANEL_ID + " .orc-selwrap select:focus{border-color:#6f7bff}#" + PANEL_ID + " .orc-body{padding:10px;overflow-y:auto;flex:1;min-height:80px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}#" + PANEL_ID + " .orc-body::-webkit-scrollbar{width:8px}#" + PANEL_ID + " .orc-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:8px}#" + PANEL_ID + " .orc-collapsed .orc-sub,.orc-collapsed .orc-selrow,.orc-collapsed .orc-body{display:none}#" + PANEL_ID + " .orc-msg{margin:0 0 10px;white-space:pre-wrap;word-break:break-word;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}#" + PANEL_ID + " .orc-msg.user{background:rgba(111,123,255,.08);border-color:rgba(111,123,255,.18)}#" + PANEL_ID + " .orc-msg .orc-meta{font-size:10.5px;opacity:.6;margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}#" + PANEL_ID + " .orc-think{border:1px solid rgba(255,255,255,.08);border-radius:8px;margin:0 0 8px;background:rgba(0,0,0,.2)}#" + PANEL_ID + " .orc-think summary{cursor:pointer;font-size:10.5px;opacity:.7;padding:3px 8px}#" + PANEL_ID + " .orc-think pre{margin:0;padding:2px 8px 8px;font-size:11px;opacity:.6;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}#" + PANEL_ID + " .orc-err{color:#ff9a9e;background:rgba(229,72,77,.08);border-color:rgba(229,72,77,.2)}#" + PANEL_ID + " .orc-tools{font-size:10.5px;opacity:.6;margin-top:5px}#" + PANEL_ID + " .orc-note{font-size:11px;opacity:.65;margin:0 0 8px;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.08)}#orcstrator-folders{position:fixed;z-index:2147483647;top:120px;right:420px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:rgba(15,15,22,.95);backdrop-filter:blur(14px);color:#e9e9f2;border:1px solid rgba(255,255,255,.09);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.55);font:13px/1.5 system-ui,sans-serif;overflow:hidden}#orcstrator-folders.orc-hidden{display:none}#orcstrator-folders .orc-fhead{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-weight:600;font-size:12px;background:rgba(255,255,255,.03)}#orcstrator-folders .orc-crumb{padding:6px 10px;font-size:11px;opacity:.85;word-break:break-all;border-bottom:1px solid rgba(255,255,255,.06)}#orcstrator-folders .orc-crumb button{background:none;border:none;color:#8ab4ff;cursor:pointer;font-size:11px;padding:0 4px}#orcstrator-folders .orc-flist{overflow-y:auto;padding:4px}#orcstrator-folders .orc-fitem{display:block;width:100%;text-align:left;background:none;border:none;color:#e9e9f2;padding:5px 9px;border-radius:7px;cursor:pointer;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#orcstrator-folders .orc-fitem.dir:hover{background:rgba(255,255,255,.07)}#orcstrator-folders .orc-fitem.file{opacity:.35;cursor:default}#orcstrator-folders .orc-ffoot{display:flex;gap:8px;padding:8px 10px;border-top:1px solid rgba(255,255,255,.09)}#orcstrator-folders .orc-ffoot .orc-btn{flex:1;padding:6px;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e9e9f2;border-radius:8px;font-size:12px}#orcstrator-folders .orc-ffoot .orc-use{border-color:rgba(70,167,88,.5);color:#7adaa0;background:rgba(70,167,88,.1)}";
     document.documentElement.appendChild(css);
@@ -180,6 +180,7 @@
       refreshStopBtn();
     };
     panel.querySelector(".orc-folders").onclick = () => openFolders(state.directory || null);
+    panel.querySelector(".orc-tui").onclick = () => openTui();
     populatePickers();
     return panel;
   }
@@ -264,6 +265,53 @@
     stop.disabled = !running;
     stop.textContent = running ? "\u25A0 stop" : "\u25A0 stop";
     stop.title = running ? "abort the OpenCode run and end the relay chain" : "nothing running";
+  }
+  function copyText(t) {
+    return new Promise(async (resolve) => {
+      try {
+        await navigator.clipboard.writeText(t);
+        resolve(true);
+        return;
+      } catch {
+      }
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = t;
+        ta.style.cssText = "position:fixed;opacity:0;left:-999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        resolve(ok);
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+  async function openTui() {
+    ensurePanel();
+    if (!state.chatId) {
+      appendNote("no ChatGPT conversation detected yet \u2014 the TUI opens this chat's OpenCode session, so send a message first");
+      return;
+    }
+    appendNote("asking bridge to open a terminal for session of " + state.chatId.slice(0, 8) + "\u2026");
+    try {
+      const r = await bridgePost(state.bridgeUrl, "/tui", { chatId: state.chatId });
+      const j = r && r.json || {};
+      if (j.ok) {
+        appendNote("OpenCode TUI opened in a new terminal (" + j.method + ") \u2014 session " + String(j.session || "").slice(0, 14) + "\u2026 \u2014 the conversation streams live there");
+      } else if (j.command) {
+        const copied = await copyText(j.command);
+        appendError(
+          (j.error || "bridge could not open a terminal") + (copied ? " \u2014 copied to clipboard, paste it into a terminal:" : " \u2014 run this in a terminal:") + "\n" + j.command
+        );
+      } else {
+        appendError(j.error || "bridge refused the TUI request");
+      }
+    } catch (e) {
+      appendError("TUI open failed \u2014 bridge unreachable: " + String(e && e.message || e));
+    }
   }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
@@ -1213,7 +1261,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.5.1 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.6.0 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
     const noticeSend = (capturedText) => {
       if (state.relayMode !== "relay") return;
       if (isSelfSend()) return;

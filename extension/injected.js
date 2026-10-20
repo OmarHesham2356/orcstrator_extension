@@ -189,6 +189,7 @@
       '<button class="orc-btn orc-icon orc-close" title="hide panel — reopen it from the launcher">×</button>' +
       "</div>" +
       '<div class="orc-sub"><span class="orc-dir" title="OpenCode working directory">…</span>' +
+      '<button class="orc-btn orc-tui" title="watch this conversation\'s OpenCode session in a live terminal TUI">⌨ TUI</button>' +
       '<button class="orc-btn orc-folders" title="choose working folder">📁 folders</button></div>' +
       '<div class="orc-selrow">' +
       '<label class="orc-selwrap" title="OpenCode model (provider/model)"><span class="orc-selcap">model</span><select class="orc-model"><option value="">…</option></select></label>' +
@@ -300,6 +301,7 @@
       refreshStopBtn();
     };
     panel.querySelector(".orc-folders").onclick = () => openFolders(state.directory || null);
+    panel.querySelector(".orc-tui").onclick = () => openTui();
     populatePickers();
     return panel;
   }
@@ -393,6 +395,58 @@
     stop.title = running
       ? "abort the OpenCode run and end the relay chain"
       : "nothing running";
+  }
+
+  // ---------- OpenCode TUI launcher ----------
+  // Asks the bridge (which runs on your machine) to spawn a terminal window
+  // running `opencode -s <id>` in this conversation's working directory.
+  function copyText(t) {
+    return new Promise(async (resolve) => {
+      try {
+        await navigator.clipboard.writeText(t);
+        resolve(true);
+        return;
+      } catch {}
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = t;
+        ta.style.cssText = "position:fixed;opacity:0;left:-999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        resolve(ok);
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+  async function openTui() {
+    ensurePanel();
+    if (!state.chatId) {
+      appendNote("no ChatGPT conversation detected yet — the TUI opens this chat's OpenCode session, so send a message first");
+      return;
+    }
+    appendNote("asking bridge to open a terminal for session of " + state.chatId.slice(0, 8) + "…");
+    try {
+      const r = await bridgePost(state.bridgeUrl, "/tui", { chatId: state.chatId });
+      const j = (r && r.json) || {};
+      if (j.ok) {
+        appendNote("OpenCode TUI opened in a new terminal (" + j.method + ") — session " + String(j.session || "").slice(0, 14) + "… — the conversation streams live there");
+      } else if (j.command) {
+        const copied = await copyText(j.command);
+        appendError(
+          (j.error || "bridge could not open a terminal") +
+            (copied ? " — copied to clipboard, paste it into a terminal:" : " — run this in a terminal:") +
+            "\n" + j.command
+        );
+      } else {
+        appendError(j.error || "bridge refused the TUI request");
+      }
+    } catch (e) {
+      appendError("TUI open failed — bridge unreachable: " + String((e && e.message) || e));
+    }
   }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
@@ -1455,7 +1509,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.5.1 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.6.0 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
 
     // Relay mode: ChatGPT must actually SEND the message (we never block it).
     // We passively notice the send, then watch for ChatGPT's reply.
