@@ -1,0 +1,11 @@
+{
+  "port": 8787,
+  "host": "127.0.0.1",
+  "opencode": {
+    "url": "http://127.0.0.1:49374",
+    "username": "opencode",
+    "password": ""
+  },
+  "projectDir": "/home/omarcash/Documents/GitHub/orcstrator_extension",
+  "forwardTo": "opencode"
+}

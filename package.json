@@ -1,0 +1,25 @@
+{
+  "name": "orcstrator-extension",
+  "version": "0.4.8",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bridge:dev": "tsx watch bridge/src/server.ts",
+    "bridge:start": "tsx bridge/src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "build:ext": "node scripts/build-ext.mjs",
+    "dev:ext": "node scripts/build-ext.mjs --watch"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.5",
+    "esbuild": "^0.25.10",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

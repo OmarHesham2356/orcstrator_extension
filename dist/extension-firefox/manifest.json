@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Orcstrator - ChatGPT <-> OpenCode",
+  "version": "0.4.8",
+  "description": "Make ChatGPT act as the frontend while OpenCode runs the work via a local bridge.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "orcstrator@example.com",
+      "strict_min_version": "121.0"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chatgpt.openai.com/*",
+    "https://chatgpt-dev.openai.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chatgpt.openai.com/*",
+        "https://chatgpt-dev.openai.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "injected.js"
+      ],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chatgpt.openai.com/*",
+        "https://chatgpt-dev.openai.com/*"
+      ]
+    }
+  ]
+}

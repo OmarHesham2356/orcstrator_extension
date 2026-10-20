@@ -1,0 +1,10 @@
+# dependencies
+node_modules/
+
+# local state / logs
+*.log
+config.json
+
+# OS / editor noise
+.DS_Store
+*.swp

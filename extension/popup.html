@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orcstrator</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
+    body { margin: 0; padding: 16px; min-width: 320px; background: #111; color: #fff; }
+    label { display: block; font-size: 12px; margin: 12px 0 4px; opacity: .85; }
+    input, select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #333; background: #0b0b0b; color: #fff; }
+    button { margin-top: 16px; width: 100%; padding: 10px 12px; border-radius: 10px; border: 0; background: #4f46e5; color: #fff; cursor: pointer; }
+    button.secondary { background: #222; }
+    .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1f2937; }
+    .hint { font-size: 11px; opacity: .6; }
+    .ok { background: #14532d; }
+    .bad { background: #7f1d1d; }
+  </style>
+</head>
+<body>
+  <h3>Orcstrator</h3>
+  <label>Bridge URL</label>
+  <input id="bridge" value="http://127.0.0.1:8787" />
+  <label>Forward to</label>
+  <select id="forward">
+    <option value="opencode" selected>OpenCode (do work)</option>
+    <option value="chatgpt">ChatGPT (passthrough)</option>
+  </select>
+  <label>Relay mode</label>
+  <select id="relay">
+    <option value="relay" selected>ChatGPT ⇄ OpenCode loop (they talk)</option>
+    <option value="direct">OpenCode only (answer in panel)</option>
+  </select>
+  <label id="turns-label">Loop turns (OpenCode replies per message)</label>
+  <input id="turns" type="number" min="1" max="12" value="4" />
+  <label>OpenCode Agent (optional)</label>
+  <input id="agent" list="agent-list" placeholder="build" autocomplete="off" />
+  <datalist id="agent-list"></datalist>
+  <label>Model (optional, provider/model)</label>
+  <input id="model" list="model-list" placeholder="opencode/longcat-2.5-preview-free" autocomplete="off" />
+  <datalist id="model-list"></datalist>
+  <div class="row">
+    <span id="lists-hint" class="hint">loading models…</span>
+  </div>
+  <div class="row">
+    <span id="status-pill" class="pill">checking...</span>
+    <button class="secondary" id="test">Test</button>
+  </div>
+  <button id="save">Save</button>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
