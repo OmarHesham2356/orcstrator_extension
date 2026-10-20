@@ -313,6 +313,86 @@
       appendError("TUI open failed \u2014 bridge unreachable: " + String(e && e.message || e));
     }
   }
+  const LIMIT_RE = /chat paused until[\s\S]{0,120}?usage resets?|you(?:'ve| have)? (?:reached|hit)[^\n]{0,60}limit for (?:chats|files|images|messages)|reached your [^\n]{0,30}(?:usage|quota|cap|daily|file|image) limit|usage limit was reached|(?:your|the)[^\n]{0,40}limit (?:will )?resets?/i;
+  const limitState = { active: false, detail: "", untilTs: 0, missStreak: 0 };
+  let limitTimer = null;
+  function notifyOrc(title, text) {
+    window.postMessage({ type: "orcstrator:notify", title, text }, "*");
+  }
+  function parseResetTime(text) {
+    const m = String(text).match(/(\d{1,2}):(\d{2})\s*(a\.?m\.?|p\.?m\.?)/i);
+    if (!m) return 0;
+    let h = parseInt(m[1], 10) % 12;
+    const n = 60 * 1e3;
+    const min = parseInt(m[2], 10);
+    if (/p/i.test(m[3])) h += 12;
+    const now = /* @__PURE__ */ new Date();
+    const cand = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, 0);
+    if (cand.getTime() <= Date.now() + 60 * 1e3) cand.setDate(cand.getDate() + 1);
+    return cand.getTime();
+  }
+  function scanLimitBanner() {
+    let found = null;
+    const nodes = document.querySelectorAll("div,span,p,h1,h2,h3,h4,h5,li,td");
+    for (const el of nodes) {
+      if (el.closest && el.closest('form,[id^="prompt-textarea"],[contenteditable="true"]')) continue;
+      const t = (el.textContent || "").trim();
+      if (!t || t.length > 420) continue;
+      if (!LIMIT_RE.test(t)) continue;
+      found = t;
+      break;
+    }
+    return found;
+  }
+  function resetTimeLabel() {
+    return limitState.untilTs ? new Date(limitState.untilTs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  }
+  function syncLimitNote() {
+    if (!limitState.active) return;
+    const label = resetTimeLabel();
+    setStatus("busy", "ChatGPT limited" + (label ? " (resets " + label + ")" : ""));
+  }
+  function limitClear(reason) {
+    limitState.active = false;
+    limitState.untilTs = 0;
+    limitState.detail = "";
+    appendNote("usage-limit pause lifted \u2014 " + reason);
+    notifyOrc("Orcstrator \u2014 relay re-enabled", "ChatGPT limit " + reason);
+  }
+  function limitTick() {
+    if (!limitState.active) {
+      const found = scanLimitBanner();
+      if (!found) return;
+      limitState.active = true;
+      limitState.detail = found.slice(0, 220);
+      limitState.untilTs = parseResetTime(found);
+      limitState.missStreak = 0;
+      console.warn("[orcstrator] ChatGPT usage limit detected:", limitState.detail);
+      appendError(
+        "ChatGPT usage limit detected \u2014 auto-send PAUSED; OpenCode replies stay in this panel" + (limitState.untilTs ? " until ~" + resetTimeLabel() : "") + ' Banner: "' + limitState.detail + '"'
+      );
+      notifyOrc(
+        "Orcstrator \u2014 auto-send paused",
+        "ChatGPT hit a usage limit" + (limitState.untilTs ? " (resets " + resetTimeLabel() + ")" : "") + ". OpenCode replies stay in the panel until it lifts."
+      );
+      syncLimitNote();
+      return;
+    }
+    if (limitState.untilTs) {
+      if (Date.now() >= limitState.untilTs) limitClear("reset time reached");
+      return;
+    }
+    if (scanLimitBanner()) {
+      limitState.missStreak = 0;
+      syncLimitNote();
+    } else if (++limitState.missStreak >= 3) {
+      limitClear("no limit notice visible anymore");
+    }
+  }
+  function armLimitWatch() {
+    if (limitTimer) return;
+    limitTimer = setInterval(limitTick, 6e3);
+  }
   function renderRelayBadge() {
     if (!relayBadgeEl) return;
     relayBadgeEl.textContent = state.relayMode === "relay" ? "\u27F3" : "\u25C7";
@@ -987,6 +1067,13 @@
     const answer = currentAnswer && currentAnswer.text ? currentAnswer.text : "";
     if (state.relayMode !== "relay") return;
     console.log("[orcstrator] OpenCode finished, answer " + answer.length + " chars, turns left " + state.turnBudget);
+    if (limitState.active) {
+      appendNote(
+        "ChatGPT usage limit active \u2014 OpenCode's reply stays in this panel (auto-send paused" + (limitState.untilTs ? " until ~" + resetTimeLabel() : "") + ")"
+      );
+      syncLimitNote();
+      return finishRelay("ChatGPT limited \u2014 reply kept in panel");
+    }
     if (!answer.trim()) {
       appendNote("relay: OpenCode produced no text to send back");
       return finishRelay("no answer");
@@ -1274,6 +1361,7 @@
     renderRelayBadge();
     state.chatId = getCurrentChatId();
     ensurePanel();
+    armLimitWatch();
     let lastHref = location.href;
     setInterval(() => {
       if (location.href !== lastHref) {
@@ -1295,7 +1383,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.6.1 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.7.0 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
     const noticeSend = (capturedText) => {
       if (state.relayMode !== "relay") return;
       if (isSelfSend()) return;

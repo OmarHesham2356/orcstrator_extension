@@ -113,6 +113,18 @@ Notes:
 - **Model & agent dropdowns** live in the panel: pick from every OpenCode model (`provider/id`) and agent. Choices apply from the very next message and are saved (the popup still works too).
 - **Stop button** is red, enabled only while a run/relay chain is active, and aborts the OpenCode run plus ends the loop.
 - `⟳` toggles the ChatGPT ⇄ OpenCode relay loop on/off; `–` collapses the panel to the header.
+- **Edge-case coverage (v0.7.0)**:
+  - **ChatGPT usage limits** — when a cap notice appears ("Chat paused until usage resets tomorrow at
+    12:07 AM", "You've reached the limit for chats that include files or images", "Your limit will
+    reset…"), the loop **pauses auto-send but keeps OpenCode running and its output visible in the
+    panel**, and a **system notification** (plus panel + console warning) tells you why. Auto-send
+    re-enables automatically at the parsed reset time, or when the notice is gone for ~18 s if no
+    reset time could be parsed.
+  - **Silent OpenCode stalls** (v0.6.1) — `session.idle` without a succeeded/failed event, or zero
+    OpenCode events for 15+ minutes, ends/warns the chain instead of waiting forever.
+  - **Bridge down / unreachable** — error note in panel + console, chain stops cleanly.
+  - **Console errors** — every panel error is also `console.warn`-ed so `about:debugging` logs show it.
+- `⟳` toggles the ChatGPT ⇄ OpenCode relay loop on/off; `–` collapses the panel to the header.
 - **Resilient loop end detection (v0.6.1)**: OpenCode normally ends with `session.execution.succeeded`,
   but stalled/aborted runs can go `session.idle` with no end event — the relay now treats that as
   finish (and reports "no text to send back" if there is none), plus a watchdog warns (panel + console)

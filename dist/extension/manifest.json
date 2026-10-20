@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Orcstrator - ChatGPT <-> OpenCode",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Make ChatGPT act as the frontend while OpenCode runs the work via a local bridge.",
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "notifications"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

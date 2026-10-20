@@ -97,6 +97,17 @@
       } catch (err) {
         reply({ ok: false, error: String(err) });
       }
+    } else if (e.data.type === "orcstrator:notify") {
+      try {
+        const p = ext.runtime.sendMessage({
+          type: "orcstrator:notify",
+          title: e.data.title,
+          text: e.data.text
+        });
+        if (p && typeof p.catch === "function") p.catch(() => {
+        });
+      } catch {
+      }
     } else if (e.data.type === "orcstrator:config-write") {
       (async () => {
         try {

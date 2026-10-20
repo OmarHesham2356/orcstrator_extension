@@ -1,6 +1,6 @@
 // dist/extension/background.js
 var ext = typeof globalThis.browser !== "undefined" ? globalThis.browser : globalThis.chrome;
-console.log("[orcstrator] background v0.4.9 live");
+console.log("[orcstrator] background v0.7.0 live");
 var IS_FIREFOX = typeof navigator !== "undefined" && /Firefox\//.test(navigator.userAgent);
 ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const hasSendResponse = typeof sendResponse === "function";
@@ -27,6 +27,17 @@ ext.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (IS_FIREFOX) return p;
     p.then(sendResponse, (e) => sendResponse({ ok: false, error: String(e) }));
     return true;
+  }
+  if (msg.type === "orcstrator:notify") {
+    try {
+      ext.notifications && ext.notifications.create("orcstrator-" + Date.now(), {
+        type: "basic",
+        title: String(msg.title || "Orcstrator").slice(0, 60),
+        message: String(msg.text || "").slice(0, 300) || "\u2014"
+      });
+    } catch (e2) {
+    }
+    return hasSendResponse ? false : void 0;
   }
   return hasSendResponse ? false : void 0;
 });
