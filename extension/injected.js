@@ -417,7 +417,7 @@
       dirEl.title = "OpenCode working directory: " + (dir || "(bridge default)");
     }
   }
-  function appendNote() {
+  function appendNote(text) {
     ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-note";
@@ -505,7 +505,7 @@
     }
     refreshStopBtn();
   }
-  function appendUser() {
+  function appendUser(text, meta) {
     ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-msg user";
@@ -513,7 +513,7 @@
     bodyEl.appendChild(d);
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
-  function startAnswer() {
+  function startAnswer(meta) {
     ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const wrap = document.createElement("div");
     wrap.className = "orc-msg assistant";
@@ -554,7 +554,7 @@
     d.textContent = note;
     currentAnswer.toolsEl.appendChild(d);
   }
-  function appendError() {
+  function appendError(msg) {
     ensurePanel(); // visibility stays under the user's control (×/launcher chip)
     const d = document.createElement("div");
     d.className = "orc-msg orc-err";
@@ -1455,7 +1455,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.5.0 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.5.1 live — relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
 
     // Relay mode: ChatGPT must actually SEND the message (we never block it).
     // We passively notice the send, then watch for ChatGPT's reply.

@@ -12,7 +12,7 @@
       resolve(e.data.resp);
     }
   });
-  function sendToBridge(msg2, timeoutMs) {
+  function sendToBridge(msg, timeoutMs) {
     return new Promise((resolve, reject) => {
       const id = ++_reqId;
       const timer = setTimeout(() => {
@@ -20,7 +20,7 @@
         reject(new Error("bridge timeout"));
       }, timeoutMs || 3e4);
       _pending.set(id, { resolve, timer });
-      window.postMessage({ type: "orcstrator:to-bridge", id, payload: msg2 }, "*");
+      window.postMessage({ type: "orcstrator:to-bridge", id, payload: msg }, "*");
     });
   }
   const bridgePost = (bridgeUrl, path, body) => sendToBridge({ type: "to-bridge", bridgeUrl, path, method: "POST", body });
@@ -48,25 +48,25 @@
     return document.querySelector("#prompt-textarea") || document.querySelector('[data-qa="message-input"]') || document.querySelector('textarea[placeholder*="message" i]') || document.querySelector("form textarea") || document.querySelector('[contenteditable="true"][role="textbox"]') || Array.from(document.querySelectorAll("textarea")).find((x) => x.offsetParent !== null);
   }
   function readPromptText() {
-    let text2 = "";
+    let text = "";
     const vis = (el) => el && el.offsetParent !== null;
     for (const t of Array.from(document.querySelectorAll("textarea"))) {
       if (vis(t) && t.value && t.value.trim()) {
-        text2 = t.value;
+        text = t.value;
         break;
       }
     }
-    if (!text2) {
+    if (!text) {
       for (const ce of Array.from(document.querySelectorAll('[contenteditable="true"]'))) {
         if (!vis(ce)) continue;
         const t = ce.innerText || ce.textContent || "";
         if (t.trim()) {
-          text2 = t;
+          text = t;
           break;
         }
       }
     }
-    return String(text2 || "").trim();
+    return String(text || "").trim();
   }
   function clearPromptInput() {
     const ta = getPromptEl();
@@ -285,7 +285,7 @@
       dirEl.title = "OpenCode working directory: " + (dir || "(bridge default)");
     }
   }
-  function appendNote() {
+  function appendNote(text) {
     ensurePanel();
     const d = document.createElement("div");
     d.className = "orc-note";
@@ -352,20 +352,20 @@
     }
     if ((j.entries || []).length === 0) list.innerHTML = "<div class='orc-note'>(empty)</div>";
   }
-  function setStatus(kind, text2) {
+  function setStatus(kind, text) {
     ensurePanel();
     panel.classList.remove("orc-busy", "orc-error", "orc-ok");
     if (kind === "busy") panel.classList.add("orc-busy");
     else if (kind === "error") panel.classList.add("orc-error");
     else if (kind === "ok") panel.classList.add("orc-ok");
-    if (statusEl) statusEl.textContent = text2 || kind;
+    if (statusEl) statusEl.textContent = text || kind;
     if (!panelVisible() && chipEl) {
       chipEl.classList.toggle("orc-live", kind === "busy");
       chipEl.classList.toggle("err", kind === "error");
     }
     refreshStopBtn();
   }
-  function appendUser() {
+  function appendUser(text, meta) {
     ensurePanel();
     const d = document.createElement("div");
     d.className = "orc-msg user";
@@ -373,7 +373,7 @@
     bodyEl.appendChild(d);
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
-  function startAnswer() {
+  function startAnswer(meta) {
     ensurePanel();
     const wrap = document.createElement("div");
     wrap.className = "orc-msg assistant";
@@ -410,7 +410,7 @@
     d.textContent = note;
     currentAnswer.toolsEl.appendChild(d);
   }
-  function appendError() {
+  function appendError(msg) {
     ensurePanel();
     const d = document.createElement("div");
     d.className = "orc-msg orc-err";
@@ -568,27 +568,27 @@
     return "";
   }
   function hookFinish(started, url, acc) {
-    const text2 = String(acc || "").trim();
-    if (!text2 || text2.length < 2) {
+    const text = String(acc || "").trim();
+    if (!text || text.length < 2) {
       if (replyWatch.active && /conversation|chat|completions|companion/i.test(String(url))) {
         console.log("[orcstrator] net hook: stream from \u2026" + String(url).slice(-80) + " completed but no assistant-matched chunks (wrong format?)");
       }
       return;
     }
-    netHook.last = { text: text2, at: Date.now(), consumed: false };
+    netHook.last = { text, at: Date.now(), consumed: false };
     if (replyWatch.active) {
       if (started >= replyWatch.startedAt - 1500) {
-        console.log("[orcstrator] net hook captured ChatGPT reply (" + text2.length + " chars) via " + String(url).slice(-80));
-        consumeReply(text2, "net hook");
+        console.log("[orcstrator] net hook captured ChatGPT reply (" + text.length + " chars) via " + String(url).slice(-80));
+        consumeReply(text, "net hook");
       }
     }
   }
-  function consumeReply(text2, via) {
+  function consumeReply(text, via) {
     if (!replyWatch.active) return;
     if (netHook.last) netHook.last.consumed = true;
     stopReplyWatch();
-    console.log("[orcstrator] ChatGPT reply captured via " + via + ", " + text2.length + " chars");
-    onChatGptReply(text2);
+    console.log("[orcstrator] ChatGPT reply captured via " + via + ", " + text.length + " chars");
+    onChatGptReply(text);
   }
   const replyWatch = {
     active: false,
@@ -782,16 +782,16 @@
       if (ct && ct !== "text") continue;
       const parts = Array.isArray(c.parts) ? c.parts.filter((x) => typeof x === "string") : null;
       if (!parts) continue;
-      const text2 = parts.join("").trim();
+      const text = parts.join("").trim();
       const t = m.create_time || m.update_time || 0;
       const status = m.status || "";
-      if (status === "in_progress" || !status && !text2) {
+      if (status === "in_progress" || !status && !text) {
         if (finished && t > finished.t) inProgressLater = true;
         else if (!finished) inProgressLater = true;
         continue;
       }
-      if (text2 && t >= armSec - 3) {
-        if (!finished || t >= finished.t) finished = { text: text2, t };
+      if (text && t >= armSec - 3) {
+        if (!finished || t >= finished.t) finished = { text, t };
       }
     }
     return { finished, inProgressLater };
@@ -866,30 +866,30 @@
       }
       if (!cand) return;
     }
-    const text2 = assistantText(cand);
-    if (!text2) return;
+    const text = assistantText(cand);
+    if (!text) return;
     const streaming = chatIsStreaming();
     if (streaming) {
       if (!replyWatch.streamingSince) replyWatch.streamingSince = Date.now();
       if (Date.now() - replyWatch.streamingSince < 9e4) {
         replyWatch.stableSince = 0;
-        replyWatch.lastText = text2;
+        replyWatch.lastText = text;
         return;
       }
       console.warn("[orcstrator] stop-button visible 90s+ \u2014 proceeding on text stability");
     } else {
       replyWatch.streamingSince = 0;
     }
-    if (text2 !== replyWatch.lastText) {
-      replyWatch.lastText = text2;
+    if (text !== replyWatch.lastText) {
+      replyWatch.lastText = text;
       replyWatch.stableSince = Date.now();
       return;
     }
     if (!replyWatch.stableSince || Date.now() - replyWatch.stableSince < 1200) return;
     if (replyWatch.fallback) replyWatch.seen.add(cand);
-    consumeReply(text2, "dom watch");
+    consumeReply(text, "dom watch");
   }
-  function onChatGptReply(text2) {
+  function onChatGptReply(text) {
     if (state.relayMode !== "relay") return stopRelayChain();
     if (state.turnBudget <= 0) {
       console.log("[orcstrator] turn budget exhausted, not relaying");
@@ -897,10 +897,10 @@
     }
     state.turnBudget -= 1;
     console.log("[orcstrator] relaying to OpenCode (turns left: " + state.turnBudget + ")");
-    appendNote("ChatGPT \u2192 OpenCode \xB7 " + text2.replace(/\s+/g, " ").slice(0, 140));
-    relayToOpenCode(text2);
+    appendNote("ChatGPT \u2192 OpenCode \xB7 " + text.replace(/\s+/g, " ").slice(0, 140));
+    relayToOpenCode(text);
   }
-  async function relayToOpenCode(text2) {
+  async function relayToOpenCode(text) {
     state.busy = true;
     setStatus("busy", "OpenCode thinking\u2026");
     state.chatId = getCurrentChatId();
@@ -908,7 +908,7 @@
     try {
       const r = await bridgePost(state.bridgeUrl, "/chatgpt/prompt", {
         chatId: state.chatId,
-        text: text2,
+        text,
         model: bridgeModel,
         agent: bridgeAgent,
         directory: state.directory || void 0
@@ -958,7 +958,7 @@
       }
     });
   }
-  async function injectOpenCodeReply(text2) {
+  async function injectOpenCodeReply(text) {
     const ta = document.querySelector("#prompt-textarea") || document.querySelector('[contenteditable="true"][role="textbox"]') || document.querySelector("form textarea");
     if (!ta) return false;
     ta.focus();
@@ -970,11 +970,11 @@
     if (document.activeElement !== ta) return false;
     try {
       if (ta.tagName === "TEXTAREA") {
-        ta.value = text2;
+        ta.value = text;
         ta.dispatchEvent(new Event("input", { bubbles: true }));
       } else {
         document.execCommand("selectAll", false, null);
-        document.execCommand("insertText", false, text2);
+        document.execCommand("insertText", false, text);
         ta.dispatchEvent(new Event("input", { bubbles: true }));
       }
     } catch {
@@ -1033,20 +1033,20 @@
   }
   let bridgeModel = void 0;
   let bridgeAgent = void 0;
-  function handleStreamStatus(status, text2) {
+  function handleStreamStatus(status, text) {
     if (status === "live") {
       if (state.busy) setStatus("busy", state.busyLabel || "working");
       else setStatus("ok", "live");
     } else if (status === "connecting" || status === "retry") {
-      setStatus("busy", text2 || "connecting\u2026");
+      setStatus("busy", text || "connecting\u2026");
     } else if (status === "bridge-down") {
       setStatus("error", "stream error");
       appendError(
-        (text2 || "bridge unreachable") + " \u2014 start the bridge (tsx bridge/src/server.ts), check the popup Bridge URL, then send again."
+        (text || "bridge unreachable") + " \u2014 start the bridge (tsx bridge/src/server.ts), check the popup Bridge URL, then send again."
       );
     } else {
       setStatus("error", "stream error");
-      appendError(text2 || "stream error");
+      appendError(text || "stream error");
     }
   }
   function routeEvent(type, payload) {
@@ -1082,9 +1082,9 @@
       case "session.execution.failed": {
         state.busy = false;
         state.busyLabel = "";
-        const msg2 = d.error && (d.error.message || d.error.type) || payload.error && (payload.error.message || payload.error.type) || "run failed";
+        const msg = d.error && (d.error.message || d.error.type) || payload.error && (payload.error.message || payload.error.type) || "run failed";
         setStatus("error", "failed");
-        appendError(msg2);
+        appendError(msg);
         if (state.relayMode === "relay") stopRelayChain("opencode failed");
         break;
       }
@@ -1102,18 +1102,18 @@
   async function handleSend(cfg) {
     const now = Date.now();
     if (now < busyUntil || state.busy) return false;
-    const text2 = readPromptText();
-    if (!text2) return false;
+    const text = readPromptText();
+    if (!text) return false;
     busyUntil = now + 2500;
     state.busy = true;
     const chatId = getCurrentChatId();
     state.chatId = chatId;
     setStatus("busy", "sending");
-    appendUser(text2);
+    appendUser(text);
     try {
       const r = await bridgePost(state.bridgeUrl, "/chatgpt/prompt", {
         chatId,
-        text: text2,
+        text,
         model: cfg.model,
         agent: cfg.agent,
         directory: state.directory || void 0
@@ -1213,7 +1213,7 @@
       return;
     }
     setStatus("idle", state.relayMode === "relay" ? "relay ready" : "panel-only");
-    console.log("[orcstrator] page script v0.5.0 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
+    console.log("[orcstrator] page script v0.5.1 live \u2014 relay=" + state.relayMode + ", maxTurns=" + state.maxTurns + ", bridge=" + state.bridgeUrl);
     const noticeSend = (capturedText) => {
       if (state.relayMode !== "relay") return;
       if (isSelfSend()) return;
@@ -1231,13 +1231,13 @@
         const ta = document.activeElement;
         const editable = ta && (ta.tagName === "TEXTAREA" || ta.getAttribute("contenteditable") === "true" || ta.closest && ta.closest('[contenteditable="true"]'));
         if (!editable) return;
-        const text2 = String(
+        const text = String(
           ta.value !== void 0 && ta.value ? ta.value : ta.innerText || ta.textContent || ""
         ).trim();
-        if (!text2) return;
+        if (!text) return;
         if (state.relayMode === "relay") {
           if (isSelfSend()) return;
-          setTimeout(() => noticeSend(text2), 120);
+          setTimeout(() => noticeSend(text), 120);
           return;
         }
         e.preventDefault();
@@ -1279,8 +1279,8 @@
           setTimeout(() => noticeSend(clickText), 120);
           return;
         }
-        const text2 = readPromptText();
-        if (!text2) return;
+        const text = readPromptText();
+        if (!text) return;
         if (Date.now() < busyUntil || state.busy) {
           e.preventDefault();
           e.stopPropagation();
